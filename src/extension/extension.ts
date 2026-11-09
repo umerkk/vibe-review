@@ -3,7 +3,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { ChangedFile, ensureLocalExclude, findRepoRoot, getHeadContent, removeLocalExclude } from '../shared/git';
-import { ReviewStore } from '../shared/store';
+import { EDITOR_HEARTBEAT_MS, ReviewStore } from '../shared/store';
 import { threadState } from '../shared/types';
 import { formatReview } from '../shared/format';
 import { AGENTS, AgentId, configureAgent, filesFor, installRuntime, isInstalled, resolveNodePath, runtimeDir, uninstallAll } from '../shared/setup';
@@ -84,7 +84,29 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   let wasWaiting = false;
+  // Agents only wait for a review while this heartbeat is fresh, so a VS Code window that was
+  // closed with Review Mode still on doesn't leave the agent stuck.
+  let lastBeat = 0;
+  const heartbeat = () => {
+    if (!store.exists() || Date.now() - lastBeat < EDITOR_HEARTBEAT_MS) return;
+    lastBeat = Date.now();
+    try {
+      store.markEditorOpen();
+    } catch {
+      lastBeat = 0;
+    }
+  };
+  context.subscriptions.push({
+    dispose: () => {
+      try {
+        store.markEditorClosed();
+      } catch {
+        // Best effort: a stale heartbeat expires on its own.
+      }
+    },
+  });
   const updateStatus = () => {
+    heartbeat();
     const config = store.getConfig();
     const agent = store.getAgentState();
     const drafts = store.draftCommentCount();
@@ -155,6 +177,10 @@ export function activate(context: vscode.ExtensionContext): void {
     tree.refresh();
     updateStatus();
   }, 150);
+  // Our own heartbeat writes must not trigger a refresh (that would re-render comment threads).
+  const onStore = (uri: vscode.Uri) => {
+    if (!path.basename(uri.fsPath).startsWith('editor.json')) storeChanged();
+  };
 
   const storeWatcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(root, '.vibe-review/**'));
   const workWatcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(root, '**/*'));
@@ -168,9 +194,9 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     storeWatcher,
     workWatcher,
-    storeWatcher.onDidCreate(storeChanged),
-    storeWatcher.onDidChange(storeChanged),
-    storeWatcher.onDidDelete(storeChanged),
+    storeWatcher.onDidCreate(onStore),
+    storeWatcher.onDidChange(onStore),
+    storeWatcher.onDidDelete(onStore),
     workWatcher.onDidCreate(onWork),
     workWatcher.onDidChange(onWork),
     workWatcher.onDidDelete(onWork),

@@ -21,7 +21,7 @@ async function until(condition: () => boolean, budget = 4000): Promise<void> {
 
 function fixture(t: TestContext, withStore = true) {
   // Temporary fixtures stay under the project, never in the real HOME or system temp.
-  const base = fs.realpathSync(fs.mkdtempSync(path.resolve('.adv-hook-mcp-')));
+  const base = fs.realpathSync(fs.mkdtempSync(path.resolve('.vr-hook-mcp-')));
   const home = path.join(base, 'home');
   const root = path.join(base, 'repo');
   fs.mkdirSync(home);
@@ -34,14 +34,18 @@ function fixture(t: TestContext, withStore = true) {
   delete env.VIBE_REVIEW_ROOT;
   const git = (...args: string[]) => execFileSync('git', args, { cwd: root, env, stdio: 'ignore' });
   git('init', '-q');
-  git('config', 'user.email', 'adversarial@example.invalid');
+  git('config', 'user.email', 'test@example.invalid');
   git('config', 'user.name', 'Adversarial Test');
   fs.writeFileSync(path.join(root, 'a.ts'), 'before\n');
   git('add', 'a.ts');
   git('commit', '-qm', 'fixture');
   fs.appendFileSync(path.join(root, '.git/info/exclude'), '\n.vibe-review/\n');
   fs.writeFileSync(path.join(root, 'a.ts'), 'after\n');
-  if (withStore) fs.mkdirSync(path.join(root, '.vibe-review'));
+  if (withStore) {
+    fs.mkdirSync(path.join(root, '.vibe-review'));
+    // Stand in for an open VS Code window: agents only wait while one is running.
+    new ReviewStore(root).markEditorOpen();
+  }
   fs.mkdirSync(path.join(root, 'nested'));
   const cleanup: Array<() => Promise<void>> = [];
   t.after(async () => {
@@ -92,14 +96,14 @@ function decision(result: HookResult): any {
   return parsed;
 }
 
-function submit(store: ReviewStore, body = 'adversarial review') {
+function submit(store: ReviewStore, body = 'review body') {
   const thread = store.createThread('a.ts', 0, 0, 'after', body);
   const review = store.submitDraft()!;
   return { thread, review };
 }
 
 async function mcp(t: TestContext, f: ReturnType<typeof fixture>) {
-  const client = new Client({ name: 'adversarial-test', version: '1' });
+  const client = new Client({ name: 'vibe-review-test', version: '1' });
   const transport = new StdioClientTransport({
     command: process.execPath, args: [path.join(DIST, 'mcp.js')], cwd: f.root,
     env: Object.fromEntries(Object.entries(f.env).filter((entry): entry is [string, string] => entry[1] !== undefined)),
@@ -122,7 +126,7 @@ async function toolError(action: Promise<any>): Promise<void> {
 
 for (const raw of ['', '{broken', 'null', '[]', '"string"', '42', JSON.stringify({ padding: 'x'.repeat(2 * 1024 * 1024) })]) {
   const label = raw.length > 100 ? '2 MiB object' : JSON.stringify(raw);
-  test(`${raw === 'null' ? '[BUG] ' : ''}hook input ${label}: exits successfully with one allow decision`, async (t) => {
+  test(`hook input ${label}: exits successfully with one allow decision`, async (t) => {
     const f = fixture(t);
     assert.deepEqual(decision(await hook(t, f, ['stop', 'claude', '--timeout', '1'], raw).done), {});
   });
@@ -149,7 +153,7 @@ test('hook: unknown subcommand, non-repo cwd and missing store are harmless', as
   assert.equal(f.store.exists(), false, 'disabled hooks must not initialize review storage');
 });
 
-test('[BUG] hook: unknown agent must not consume a submitted review as Claude', async (t) => {
+test('hook: unknown agent must not consume a submitted review as Claude', async (t) => {
   const f = fixture(t);
   const { review } = submit(f.store);
   assert.deepEqual(decision(await hook(t, f, ['prompt', 'not-an-agent']).done), {});
@@ -175,7 +179,7 @@ test('hook: a clean worktree never waits even with Review Mode enabled', async (
 });
 
 for (const agent of ['claude', 'codex', 'copilot']) {
-  test(`${agent === 'copilot' ? '[BUG] ' : ''}hook ${agent}: waiting stdout is exactly one decision`, async (t) => {
+  test(`hook ${agent}: waiting stdout is exactly one decision`, async (t) => {
     const f = fixture(t);
     f.store.setConfig({ mode: 'on', waitTimeoutSec: 2 });
     const h = hook(t, f, ['stop', agent, '--timeout', '2']);
@@ -295,7 +299,7 @@ test('hook: off exits without waiting; enabling affects only the next invocation
   assert.equal(f.store.getAgentState().waiting, false);
 });
 
-test('[BUG] hook: --timeout 1 bounds waiting even if config allows thirty minutes', async (t) => {
+test('hook: --timeout 1 bounds waiting even if config allows thirty minutes', async (t) => {
   const f = fixture(t);
   f.store.setConfig({ mode: 'on', waitTimeoutSec: 1800 });
   const start = Date.now();
@@ -319,7 +323,7 @@ test('hook: stop_hook_active still waits for the next review round', async (t) =
 });
 
 for (const agent of ['claude', 'copilot']) {
-  test(`[BUG] hook ${agent}: eight continuations cap and prompt reset`, async (t) => {
+  test(`hook ${agent}: eight continuations cap and prompt reset`, async (t) => {
     const f = fixture(t);
     const input = { cwd: f.root, session_id: 'same-session', stop_hook_active: true };
     for (let round = 0; round < 8; round++) {
@@ -368,7 +372,7 @@ test('MCP: subdirectory and normalized repo path work; nonexistent/non-repo path
   assert.equal(f.store.listReviews()[0].status, 'submitted');
 });
 
-test('[BUG] MCP: traversal thread_id cannot read or mutate a record outside threads/', async (t) => {
+test('MCP: traversal thread_id cannot read or mutate a record outside threads/', async (t) => {
   const f = fixture(t);
   const { thread } = submit(f.store);
   const victim = path.join(f.store.dir, 'victim.json');
@@ -407,7 +411,7 @@ test('MCP: resolve_thread without body is idempotent and only marks Active', asy
   assert.deepEqual(f.store.getThread(thread.id), after);
 });
 
-test('[BUG] MCP: retrying resolve_thread with the same body adds no duplicate note', async (t) => {
+test('MCP: retrying resolve_thread with the same body adds no duplicate note', async (t) => {
   const f = fixture(t);
   const { thread } = submit(f.store);
   const { call } = await mcp(t, f);
@@ -429,20 +433,50 @@ test('MCP: wait timeout leaves drafts intact and server responsive', async (t) =
   await client.ping();
 });
 
-test('[BUG] MCP: cancelled wait must never consume a subsequently submitted review', async (t) => {
+test('MCP: cancelled wait must never consume a subsequently submitted review', async (t) => {
   const f = fixture(t);
   const { client } = await mcp(t, f);
   const controller = new AbortController();
   const waiting = client.callTool({ name: 'wait_for_review', arguments: { timeout_sec: 3 } }, undefined, { signal: controller.signal });
   const rejected = assert.rejects(waiting, /cancel|abort/i);
   await client.ping();
-  controller.abort(new Error('adversarial cancellation'));
+  controller.abort(new Error('client cancellation'));
   await rejected;
   await client.ping();
   const { review } = submit(f.store, 'cancelled-wait-token');
   const observationEnd = Date.now() + 1250;
   await until(() => f.store.getReview(review.id)!.status !== 'submitted' || Date.now() >= observationEnd, 2000);
   assert.equal(f.store.getReview(review.id)!.status, 'submitted', 'cancelled handler continued polling and stole the review');
+});
+
+test('MCP: wait_for_review reports the agent as waiting, keeps a lease across re-calls, and clears on delivery', async (t) => {
+  const f = fixture(t);
+  const { client, call } = await mcp(t, f);
+  assert.match(text(await call('wait_for_review', { timeout_sec: 1 })), /No review yet/);
+  const lease = f.store.getAgentState();
+  assert.equal(lease.waiting, true, 'gap between wait_for_review calls must not read as "not waiting"');
+  assert.ok(Date.parse(lease.expires!) > Date.now());
+
+  const waiting = call('wait_for_review', { timeout_sec: 5 });
+  await client.ping();
+  assert.equal(f.store.getAgentState().since, lease.since, 're-call must keep the original wait start');
+  const { review } = submit(f.store, 'lease-token');
+  assert.match(text(await waiting), /lease-token/);
+  assert.equal(f.store.getReview(review.id)!.status, 'delivered');
+  assert.equal(f.store.getAgentState().waiting, false);
+
+  f.store.setAgentState({ waiting: true, pid: process.pid, expires: new Date(Date.now() - 1).toISOString() });
+  assert.equal(f.store.getAgentState().waiting, false, 'expired lease');
+  f.store.setAgentState({ waiting: true, pid: process.pid, expires: 'garbage' });
+  assert.equal(f.store.getAgentState().waiting, false, 'unparseable lease');
+});
+
+test('MCP: wait_for_review does not take over a waiting stop hook', async (t) => {
+  const f = fixture(t);
+  f.store.setAgentState({ waiting: true, agent: 'codex', pid: process.pid, since: 'hook-start' });
+  const { call } = await mcp(t, f);
+  await call('wait_for_review', { timeout_sec: 1 });
+  assert.deepEqual(f.store.getAgentState(), { waiting: true, agent: 'codex', pid: process.pid, sessionId: undefined, since: 'hook-start', expires: undefined });
 });
 
 test('MCP + stop hook: concurrent waits have exactly one delivery winner', async (t) => {
@@ -452,7 +486,7 @@ test('MCP + stop hook: concurrent waits have exactly one delivery winner', async
   const waiting = call('wait_for_review', { timeout_sec: 2 });
   await client.ping();
   const h = hook(t, f, ['stop', 'claude', '--timeout', '2']);
-  await until(() => f.store.getAgentState().waiting);
+  await until(() => f.store.getAgentState().agent === 'claude');
   const { review } = submit(f.store, 'exclusive-mcp-stop-token');
   const [response, result] = await Promise.all([waiting, h.done]);
   const d = decision(result);
@@ -492,7 +526,7 @@ test('MCP images: ten-image cap, 5 MiB boundary, missing and traversal files', a
   assert.ok(!text(result).includes(`<${path.join(f.store.dir, 'outside.png')}>`));
 });
 
-test('[BUG] MCP images: attachment symlink cannot expose a file outside attachments/', async (t) => {
+test('MCP images: attachment symlink cannot expose a file outside attachments/', async (t) => {
   const f = fixture(t);
   fs.mkdirSync(path.join(f.store.dir, 'attachments'));
   const privateFile = path.join(f.home, 'private.png');
@@ -502,4 +536,76 @@ test('[BUG] MCP images: attachment symlink cannot expose a file outside attachme
   const { call } = await mcp(t, f);
   const result: any = await call('get_review');
   assert.equal(result.content.filter((item: any) => item.type === 'image').length, 0);
+});
+
+test('hook: Review Mode on but VS Code closed never waits', async (t) => {
+  const f = fixture(t);
+  f.store.markEditorClosed();
+  f.store.setConfig({ mode: 'on', waitTimeoutSec: 30 });
+  const start = Date.now();
+  const h = hook(t, f, ['stop', 'claude', '--timeout', '3600']);
+  assert.deepEqual(decision(await h.done), {});
+  assert.ok(Date.now() - start < 3000, 'hook held the agent with no editor open');
+  assert.equal(f.store.getAgentState().waiting, false);
+});
+
+test('hook: a review submitted before VS Code closed is still delivered', async (t) => {
+  const f = fixture(t);
+  f.store.setConfig({ mode: 'on', waitTimeoutSec: 30 });
+  submit(f.store, 'submitted-then-closed');
+  f.store.markEditorClosed();
+  const d = decision(await hook(t, f, ['stop', 'copilot', '--timeout', '3600']).done);
+  assert.equal(d.decision, 'block');
+  assert.match(d.reason, /submitted-then-closed/);
+});
+
+for (const how of ['closed', 'crashed'] as const) {
+  test(`hook: a waiting stop hook lets the agent go when VS Code is ${how}`, async (t) => {
+    const f = fixture(t);
+    f.store.markEditorClosed();
+    const editor = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)']);
+    t.after(() => { editor.kill('SIGKILL'); });
+    f.store.markEditorOpen(editor.pid!);
+    f.store.setConfig({ mode: 'on', waitTimeoutSec: 30 });
+    const h = hook(t, f, ['stop', 'codex', '--timeout', '3600']);
+    await until(() => f.store.getAgentState().waiting);
+    const start = Date.now();
+    if (how === 'closed') f.store.markEditorClosed(editor.pid!);
+    else editor.kill('SIGKILL');
+    assert.deepEqual(decision(await h.done), {});
+    assert.ok(Date.now() - start < 3000, 'hook kept waiting after VS Code went away');
+    assert.equal(f.store.getAgentState().waiting, false);
+  });
+}
+
+test('MCP: wait_for_review returns at once without an open editor and claims no waiting state', async (t) => {
+  const f = fixture(t);
+  f.store.markEditorClosed();
+  const { call } = await mcp(t, f);
+  const start = Date.now();
+  assert.match(text(await call('wait_for_review', { timeout_sec: 30 })), /VS Code is not open/);
+  assert.ok(Date.now() - start < 3000);
+  assert.equal(f.store.getAgentState().waiting, false);
+});
+
+test('MCP: wait_for_review still delivers a pending review when VS Code is closed', async (t) => {
+  const f = fixture(t);
+  const { review } = submit(f.store, 'delivered-without-editor');
+  f.store.markEditorClosed();
+  const { call } = await mcp(t, f);
+  assert.match(text(await call('wait_for_review', { timeout_sec: 30 })), /delivered-without-editor/);
+  assert.equal(f.store.getReview(review.id)!.status, 'delivered');
+});
+
+test('MCP: wait_for_review stops waiting and clears its lease when VS Code closes mid-wait', async (t) => {
+  const f = fixture(t);
+  const { client, call } = await mcp(t, f);
+  const waiting = call('wait_for_review', { timeout_sec: 30 });
+  await client.ping();
+  await until(() => f.store.getAgentState().waiting);
+  const start = Date.now();
+  f.store.markEditorClosed();
+  assert.match(text(await waiting), /VS Code is not open/);
+  assert.ok(Date.now() - start < 3000);
+  assert.equal(f.store.getAgentState().waiting, false);
 });

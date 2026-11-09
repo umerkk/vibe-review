@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { ReviewStore } from '../src/shared/store';
 import { threadState, ReviewThread } from '../src/shared/types';
 
 const STORE_TS = path.resolve(__dirname, '..', 'src', 'shared', 'store.ts');
 
-function tmpRoot(name = 'lr-adv-'): string {
+function tmpRoot(name = 'vr-'): string {
   return fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), name)));
 }
 
@@ -208,19 +208,19 @@ test('getUndeliveredReview returns oldest; getLatestSentReview returns newest', 
   assert.equal(s.getUndeliveredReview()!.id, r2.id);
 }));
 
-test('[BUG] claimForDelivery refuses non-submitted reviews', withRoot((_r, s) => {
+test('claimForDelivery refuses non-submitted reviews', withRoot((_r, s) => {
   const d = s.ensureDraftReview();
   assert.equal(s.claimForDelivery(d.id, 'a'), undefined);
   assert.equal(s.getReview(d.id)!.status, 'draft', 'a draft must not become delivered');
 }));
 
-test('[BUG] claim for a nonexistent review must not leave a permanent claim', withRoot((_r, s) => {
+test('claim for a nonexistent review must not leave a permanent claim', withRoot((_r, s) => {
   assert.equal(s.claimForDelivery('rev_ghost', 'a'), undefined);
   const claimFile = path.join(s.dir, 'claims', 'rev_ghost');
   assert.equal(fs.existsSync(claimFile), false);
 }));
 
-test('[BUG] claim whose review file is not yet written/corrupt does not poison the review forever', withRoot((_r, s) => {
+test('claim whose review file is not yet written/corrupt does not poison the review forever', withRoot((_r, s) => {
   const t = s.createThread('a.ts', 0, 0, '', 'x');
   const r = s.submitDraft()!;
   const f = path.join(s.dir, 'reviews', `${r.id}.json`);
@@ -253,7 +253,7 @@ test('exactly-once delivery: 12 processes race to claim the same review', async 
   }
 });
 
-test('[BUG] lost update: concurrent processes adding comments to the same thread', async () => {
+test('lost update: concurrent processes adding comments to the same thread', async () => {
   const root = tmpRoot();
   try {
     const s = new ReviewStore(root);
@@ -272,7 +272,7 @@ test('[BUG] lost update: concurrent processes adding comments to the same thread
   }
 });
 
-test('[BUG] lost update: extension adds user comment while MCP agent replies and resolves', async () => {
+test('lost update: extension adds user comment while MCP agent replies and resolves', async () => {
   const root = tmpRoot();
   try {
     const s = new ReviewStore(root);
@@ -358,7 +358,7 @@ test('no tmp files remain and writes leave valid JSON after many writes', withRo
 
 const GARBAGE = ['', '{"id":"thr_x","comments":[', 'null', '[]', '"str"', '42', '{}', '\u0000\u0000\u0000', '{"id":'];
 
-test('[BUG] listThreads/listReviews/getConfig/getAgentState/getSignal survive garbage files', withRoot((_r, s) => {
+test('listThreads/listReviews/getConfig/getAgentState/getSignal survive garbage files', withRoot((_r, s) => {
   const good = s.createThread('a.ts', 0, 0, '', 'ok');
   s.submitDraft();
   GARBAGE.forEach((g, i) => {
@@ -376,7 +376,7 @@ test('[BUG] listThreads/listReviews/getConfig/getAgentState/getSignal survive ga
   assert.equal(s.draftCommentCount(), 0);
 }));
 
-test('[BUG] submit/discard/approve/threadsForReview/draftCommentCount do not crash on thread missing comments', withRoot((_r, s) => {
+test('submit/discard/approve/threadsForReview/draftCommentCount do not crash on thread missing comments', withRoot((_r, s) => {
   s.createThread('a.ts', 0, 0, '', 'ok');
   writeRaw(s, 'threads/weird.json', JSON.stringify({ id: 'weird', createdAt: '2020', status: 'open' }));
   assert.doesNotThrow(() => s.draftCommentCount());
@@ -388,7 +388,7 @@ test('[BUG] submit/discard/approve/threadsForReview/draftCommentCount do not cra
   assert.doesNotThrow(() => s.discardDraft());
 }));
 
-test('[BUG] valid-JSON review/thread without createdAt does not crash listing', withRoot((_r, s) => {
+test('valid-JSON review/thread without createdAt does not crash listing', withRoot((_r, s) => {
   s.createThread('a.ts', 0, 0, '', 'ok');
   writeRaw(s, 'threads/nodate2.json', JSON.stringify({ id: 'nodate2', comments: [], status: 'open' }));
   writeRaw(s, 'reviews/nodate2.json', JSON.stringify({ id: 'nodate2', status: 'submitted' }));
@@ -405,7 +405,7 @@ test('a corrupt draft-review file does not make createThread throw or fork draft
   assert.equal(s.draftCommentCount(), 1);
 }));
 
-test('[BUG] corrupt config.json falls back to defaults; setConfig repairs it', withRoot((_r, s) => {
+test('corrupt config.json falls back to defaults; setConfig repairs it', withRoot((_r, s) => {
   for (const g of ['', '{"mode":', 'null', '[]', '"x"', '7']) {
     writeRaw(s, 'config.json', g);
     const c = s.getConfig();
@@ -417,14 +417,14 @@ test('[BUG] corrupt config.json falls back to defaults; setConfig repairs it', w
   assert.equal(s.getConfig().mode, 'on');
 }));
 
-test('[BUG] config with wrong-typed fields falls back to defaults', withRoot((_r, s) => {
+test('config with wrong-typed fields falls back to defaults', withRoot((_r, s) => {
   writeRaw(s, 'config.json', JSON.stringify({ mode: 'banana', waitTimeoutSec: 'soon' }));
   const c = s.getConfig();
   assert.equal(c.mode, 'off');
   assert.equal(c.waitTimeoutSec, 1800);
 }));
 
-test('[BUG] corrupt agent.json / signal.json do not throw and read as idle/none', withRoot((_r, s) => {
+test('corrupt agent.json / signal.json do not throw and read as idle/none', withRoot((_r, s) => {
   for (const g of ['', '{"waiting":', 'null', '[]', '"x"', '5']) {
     writeRaw(s, 'agent.json', g);
     writeRaw(s, 'signal.json', g);
@@ -442,7 +442,7 @@ test('agent waiting with dead pid is not waiting; with live pid is', withRoot((_
   assert.equal(s.getAgentState().waiting, false, 'waiting without pid cannot be verified alive');
 }));
 
-test('[BUG] agent.json {"waiting":"yes","pid":"abc"} (wrong types) is not treated as waiting', withRoot((_r, s) => {
+test('agent.json {"waiting":"yes","pid":"abc"} (wrong types) is not treated as waiting', withRoot((_r, s) => {
   writeRaw(s, 'agent.json', JSON.stringify({ waiting: 'yes', pid: process.pid }));
   assert.notEqual(s.getAgentState().waiting, 'yes' as any);
 }));
@@ -468,7 +468,7 @@ test('hostile thread ids cannot read or write outside .vibe-review', withRoot((r
   assert.ok(fs.existsSync(secret), 'delete escaped the store');
 }));
 
-test('[BUG] hostile ids: saveThread/saveReview/claim cannot create files outside .vibe-review', withRoot((root, s) => {
+test('hostile ids: saveThread/saveReview/claim cannot create files outside .vibe-review', withRoot((root, s) => {
   const mk = (id: string): ReviewThread => ({ id, file: 'f', startLine: 0, endLine: 0, anchor: '', status: 'open', comments: [], createdAt: '', updatedAt: '' });
   try { s.saveThread(mk('../../evil-thread')); } catch { /* rejecting is fine */ }
   try { s.saveReview({ id: '../../evil-review', status: 'draft', createdAt: '' }); } catch { /* fine */ }
@@ -482,7 +482,7 @@ test('[BUG] hostile ids: saveThread/saveReview/claim cannot create files outside
   assert.ok(!inStore.some((f) => f.includes('evil')), `escaped to store root: ${inStore.join(',')}`);
 }));
 
-test('[BUG] claim ids with slashes cannot create nested paths or throw', withRoot((_r, s) => {
+test('claim ids with slashes cannot create nested paths or throw', withRoot((_r, s) => {
   assert.doesNotThrow(() => s.claimForDelivery('a/b', 'x'));
   assert.equal(fs.existsSync(path.join(s.dir, 'claims', 'a')), false);
 }));
@@ -544,3 +544,55 @@ test('missing thread: addComment/setThreadStatus throw; updateThreadLocation is 
   assert.equal(s.listThreads().length, 0);
   assert.equal(s.getDraftReview(), undefined, 'failed addComment must not create a draft review');
 }));
+
+test('editor heartbeat: open, closed, dead, stale and garbage states', withRoot((root, store) => {
+  const file = path.join(root, '.vibe-review', 'editor.json');
+  assert.equal(store.isEditorOpen(), false, 'no heartbeat file');
+  store.markEditorOpen();
+  assert.equal(store.isEditorOpen(), true);
+  store.markEditorClosed();
+  assert.equal(store.isEditorOpen(), false);
+
+  const dead = spawnSync(process.execPath, ['-e', '']).pid!;
+  fs.writeFileSync(file, JSON.stringify({ editors: { [dead]: new Date().toISOString() } }));
+  assert.equal(store.isEditorOpen(), false, 'dead extension host');
+
+  fs.writeFileSync(file, JSON.stringify({ editors: { [process.pid]: new Date(Date.now() - 61_000).toISOString() } }));
+  assert.equal(store.isEditorOpen(), false, 'stale heartbeat (reused PID or frozen host)');
+
+  for (const garbage of ['{', '[]', '{"editors":[]}', `{"editors":{"${process.pid}":123}}`, `{"editors":{"-1":"${new Date().toISOString()}"}}`, `{"editors":{"${process.pid}":"not a date"}}`]) {
+    fs.writeFileSync(file, garbage);
+    assert.equal(store.isEditorOpen(), false, garbage);
+  }
+  store.markEditorOpen();
+  assert.equal(store.isEditorOpen(), true, 'recovers from a garbled file');
+}));
+
+test('editor heartbeat: closing one window keeps another open, and dead windows are pruned', withRoot(async (root, store) => {
+  const other = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)']);
+  try {
+    const dead = spawnSync(process.execPath, ['-e', '']).pid!;
+    const file = path.join(root, '.vibe-review', 'editor.json');
+    fs.writeFileSync(file, JSON.stringify({ editors: { [dead]: new Date().toISOString() } }));
+    store.markEditorOpen(other.pid!);
+    store.markEditorOpen();
+    assert.deepEqual(Object.keys(JSON.parse(fs.readFileSync(file, 'utf8')).editors).sort(), [String(other.pid), String(process.pid)].sort());
+    store.markEditorClosed();
+    assert.equal(store.isEditorOpen(), true, 'the other window is still open');
+    other.kill('SIGKILL');
+    await new Promise((r) => other.once('exit', r));
+    assert.equal(store.isEditorOpen(), false, 'last window crashed');
+  } finally {
+    other.kill('SIGKILL');
+  }
+}));
+
+test('editor heartbeat: markEditorClosed never creates the store', () => {
+  const root = tmpRoot();
+  try {
+    new ReviewStore(root).markEditorClosed();
+    assert.equal(fs.existsSync(path.join(root, '.vibe-review')), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

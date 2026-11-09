@@ -16,7 +16,7 @@ import { configureAgent, isInstalled, uninstallAll } from '../src/shared/setup';
 const DIST = path.resolve(__dirname, '..', 'dist');
 
 function makeRepo(): string {
-  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'lr-repo-')));
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'vr-repo-')));
   const git = (...args: string[]) => execFileSync('git', args, { cwd: dir, stdio: 'ignore' });
   git('init', '-q');
   git('config', 'user.email', 't@t');
@@ -27,6 +27,8 @@ function makeRepo(): string {
   fs.writeFileSync(path.join(dir, 'a.ts'), 'one\nTWO\nthree\nfour\nfive\n');
   fs.writeFileSync(path.join(dir, 'new.ts'), 'brand new\n');
   fs.mkdirSync(path.join(dir, '.vibe-review'));
+  // Stand in for an open VS Code window: agents only wait while one is running.
+  new ReviewStore(dir).markEditorOpen();
   return dir;
 }
 
@@ -296,7 +298,7 @@ test('attachments: pasted images reach the agent as absolute paths and MCP image
 });
 
 test('setup: installs and uninstalls idempotently, preserving existing config', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-home-'));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'vr-home-'));
   const prevCopilotHome = process.env.COPILOT_HOME;
   delete process.env.COPILOT_HOME;
   try {
@@ -339,7 +341,7 @@ test('setup: installs and uninstalls idempotently, preserving existing config', 
 });
 
 test('uninstall: no-op for untouched agents; uninstallAll removes entries and runtime', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-home-'));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'vr-home-'));
   const prevCopilotHome = process.env.COPILOT_HOME;
   delete process.env.COPILOT_HOME;
   const listFiles = (dir: string): string[] =>

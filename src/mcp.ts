@@ -14,6 +14,9 @@ import { findAttachments } from './shared/attachments';
 import { Review, threadState } from './shared/types';
 
 const VERSION = '0.1.0';
+const WAIT_LEASE_GRACE_MS = 20_000;
+const NO_EDITOR =
+  'VS Code is not open on this repository with Vibe Review running, so no review can be submitted. Stop waiting; call wait_for_review again once the user opens VS Code.';
 
 function resolveStore(repoPath?: string): ReviewStore {
   const start = repoPath || process.env.VIBE_REVIEW_ROOT || process.cwd();
@@ -144,7 +147,7 @@ server.registerTool(
   {
     title: 'Wait for a local code review',
     description:
-      'Blocks until the user submits a review in VS Code or the timeout elapses. If it returns "No review yet", call it again to keep waiting. Prefer the stop hook when installed.',
+      'Blocks until the user submits a review in VS Code or the timeout elapses. If it returns "No review yet", call it again to keep waiting. Returns immediately if VS Code is not open on the repository. Prefer the stop hook when installed.',
     inputSchema: {
       repo_path: repoPath,
       timeout_sec: z.number().int().min(1).max(55).default(50),
@@ -153,12 +156,35 @@ server.registerTool(
   async ({ repo_path, timeout_sec }, extra) => {
     const store = resolveStore(repo_path);
     const deadline = Date.now() + timeout_sec * 1000;
+    // Tell VS Code an agent is waiting. The lease outlives this call so the short gap before the
+    // agent calls again doesn't flicker the UI; a stop hook that is already waiting keeps ownership.
+    const current = store.getAgentState();
+    const owns = !current.waiting || current.pid === process.pid;
+    if (owns && store.isEditorOpen()) {
+      store.setAgentState({
+        waiting: true,
+        pid: process.pid,
+        since: current.pid === process.pid && current.since ? current.since : new Date().toISOString(),
+        expires: new Date(deadline + WAIT_LEASE_GRACE_MS).toISOString(),
+      });
+    }
+    const release = () => {
+      if (owns && store.getAgentState().pid === process.pid) store.setAgentState({ waiting: false });
+    };
     // Stop polling when the client cancels, so a cancelled wait can't claim a review later.
     while (!extra.signal.aborted) {
       const pending = store.getUndeliveredReview();
       if (pending) {
         const review = store.claimForDelivery(pending.id, 'mcp');
-        if (review) return reviewContent(store, review);
+        if (review) {
+          release();
+          return reviewContent(store, review);
+        }
+      }
+      // A review submitted before VS Code closed is still delivered above; otherwise none can come.
+      if (!store.isEditorOpen()) {
+        release();
+        return text(NO_EDITOR);
       }
       const left = deadline - Date.now();
       if (left <= 0) break;
@@ -172,6 +198,7 @@ server.registerTool(
         extra.signal.addEventListener('abort', done);
       });
     }
+    if (extra.signal.aborted) release();
     return text('No review yet. Call wait_for_review again to keep waiting.');
   },
 );

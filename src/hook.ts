@@ -89,6 +89,8 @@ async function runStop(store: ReviewStore, agent: Agent, input: Record<string, u
 
   const config = store.getConfig();
   if (config.mode !== 'on') return allow();
+  // Review Mode left on with VS Code closed: nobody can submit a review, so don't hold the agent.
+  if (!store.isEditorOpen()) return allow();
   if (getChangedFiles(store.root).length === 0) return allow();
 
   const budgetSec = waitBudgetSec(config.waitTimeoutSec, hookTimeoutSec);
@@ -120,6 +122,7 @@ async function runStop(store: ReviewStore, agent: Agent, input: Record<string, u
       const signal = store.getSignal();
       if (signal && new Date(signal.at).getTime() >= startedAt.getTime()) return allow();
       if (store.getConfig().mode !== 'on') return allow();
+      if (!store.isEditorOpen()) return allow();
 
       const left = deadline - Date.now();
       if (left <= 0) return allow();

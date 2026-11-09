@@ -12,7 +12,7 @@ import { configureAgent, isInstalled, uninstallAll, type AgentId, type SetupCont
 import { ensureLocalExclude, removeLocalExclude } from '../src/shared/git';
 
 const AGENT_IDS: AgentId[] = ['claude', 'codex', 'copilot'];
-const SCRATCH = path.join(__dirname, '.adv-setup-tmp');
+const SCRATCH = path.join(__dirname, '.setup-tmp');
 const ENV_KEYS = ['HOME', 'USERPROFILE', 'COPILOT_HOME'] as const;
 const savedEnv: Partial<Record<(typeof ENV_KEYS)[number], string | undefined>> = {};
 const BEGIN = '# >>> vibe-review >>>';
@@ -230,7 +230,7 @@ test('~/.claude.json (large, with projects state): configure → uninstall is by
   assert.equal(read(f.claudeJson), original);
 });
 
-test('[BUG] claude settings.json with tab indentation: configure → uninstall preserves the user\'s formatting', () => {
+test('claude settings.json with tab indentation: configure → uninstall preserves the user\'s formatting', () => {
   const home = mkHome();
   const f = files(home);
   const original = JSON.stringify(userClaudeSettings, null, '\t') + '\n';
@@ -240,7 +240,7 @@ test('[BUG] claude settings.json with tab indentation: configure → uninstall p
   assert.equal(read(f.settings), original);
 });
 
-test('[BUG] empty containers the user already had (hooks: {}, mcpServers: {}) survive configure → uninstall', () => {
+test('empty containers the user already had (hooks: {}, mcpServers: {}) survive configure → uninstall', () => {
   const home = mkHome();
   const f = files(home);
   const s = json({ hooks: {}, model: 'x' });
@@ -268,7 +268,7 @@ test('codex hooks.json and copilot mcp-config.json: other entries preserved byte
   assert.equal(read(f.cpMcp), cpMcp);
 });
 
-test('[BUG] user Stop hook with a similar-looking command (…/my-vibe-review/bin/hook.js) is never treated as ours', () => {
+test('user Stop hook with a similar-looking command (…/my-vibe-review/bin/hook.js) is never treated as ours', () => {
   const home = mkHome();
   const f = files(home);
   const userGroup = { hooks: [{ type: 'command', command: 'node /Users/me/tools/my-vibe-review/bin/hook.js stop' }] };
@@ -281,7 +281,7 @@ test('[BUG] user Stop hook with a similar-looking command (…/my-vibe-review/bi
   assert.equal(read(f.settings), original);
 });
 
-test('[BUG] uninstall only removes our handler from a matcher group the user shares with it', () => {
+test('uninstall only removes our handler from a matcher group the user shares with it', () => {
   const home = mkHome();
   const f = files(home);
   configureAgent('claude', ctxFor(home));
@@ -295,7 +295,7 @@ test('[BUG] uninstall only removes our handler from a matcher group the user sha
   assert.deepEqual(after.hooks?.Stop, [{ hooks: [userHandler] }]);
 });
 
-test('[BUG] uninstall does not delete a user-defined "vibe-review" MCP server that is not ours', () => {
+test('uninstall does not delete a user-defined "vibe-review" MCP server that is not ours', () => {
   const home = mkHome();
   const f = files(home);
   installRuntimeStub(home);
@@ -332,7 +332,7 @@ test('configure twice: no duplicate entries anywhere, and the .bak still holds t
   assert.equal(read(`${f.codexToml}.vibe-review.bak`), 'model = "o3"\n');
 });
 
-test('[BUG] re-running setup after node moved (different nodePath) does not overwrite the original backup', () => {
+test('re-running setup after node moved (different nodePath) does not overwrite the original backup', () => {
   const home = mkHome();
   const f = files(home);
   const original = json(userClaudeSettings);
@@ -355,7 +355,7 @@ test('uninstallAll on a pristine home creates no files or directories and report
   assert.equal(fs.existsSync(process.env.COPILOT_HOME!), false);
 });
 
-test('[BUG] uninstallAll on a home with unrelated agent config touches nothing (no rewrite, no .bak)', () => {
+test('uninstallAll on a home with unrelated agent config touches nothing (no rewrite, no .bak)', () => {
   const home = mkHome();
   const f = files(home);
   put(f.settings, '{"model":"x"}');
@@ -444,7 +444,7 @@ test('empty and whitespace-only files are treated as {} and configured', () => {
   assert.ok(JSON.parse(read(f.claudeJson)).mcpServers['vibe-review']);
 });
 
-test('[BUG] top-level JSON array: configure must fail loudly, not report success while installing nothing', () => {
+test('top-level JSON array: configure must fail loudly, not report success while installing nothing', () => {
   const home = mkHome();
   const f = files(home);
   put(f.settings, '[1, 2]\n');
@@ -469,7 +469,7 @@ test('`hooks` of the wrong type (string, object-valued event): throws and leaves
   }
 });
 
-test('[BUG] `hooks` / `mcpServers` that are arrays: configure must fail loudly, not silently install nothing', () => {
+test('`hooks` / `mcpServers` that are arrays: configure must fail loudly, not silently install nothing', () => {
   const home = mkHome();
   const f = files(home);
   put(f.settings, json({ hooks: [] }));
@@ -480,7 +480,7 @@ test('[BUG] `hooks` / `mcpServers` that are arrays: configure must fail loudly, 
   assertThrowsUnchanged(f2.cpMcp, () => configureAgent('copilot', ctxFor(home2)), 'mcpServers: [] silently accepted');
 });
 
-test('[BUG] claude configure is all-or-nothing: unparseable ~/.claude.json leaves settings.json untouched', () => {
+test('claude configure is all-or-nothing: unparseable ~/.claude.json leaves settings.json untouched', () => {
   const home = mkHome();
   const f = files(home);
   const s = json({ model: 'x' });
@@ -492,7 +492,7 @@ test('[BUG] claude configure is all-or-nothing: unparseable ~/.claude.json leave
 
 // ---- Codex TOML ----------------------------------------------------------------------
 
-test('[BUG] codex config.toml: configure → uninstall restores the file byte-for-byte (LF, trailing newline)', () => {
+test('codex config.toml: configure → uninstall restores the file byte-for-byte (LF, trailing newline)', () => {
   const home = mkHome();
   const f = files(home);
   const original = 'model = "o3"\n\n[mcp_servers.github]\ncommand = "gh-mcp"\n';
@@ -503,7 +503,7 @@ test('[BUG] codex config.toml: configure → uninstall restores the file byte-fo
   assert.equal(read(f.codexToml), original);
 });
 
-test('[BUG] codex config.toml without trailing newline: configure → uninstall restores it byte-for-byte', () => {
+test('codex config.toml without trailing newline: configure → uninstall restores it byte-for-byte', () => {
   const home = mkHome();
   const f = files(home);
   const original = 'model = "o3"';
@@ -514,7 +514,7 @@ test('[BUG] codex config.toml without trailing newline: configure → uninstall 
   assert.equal(read(f.codexToml), original);
 });
 
-test('[BUG] codex config.toml with CRLF: valid TOML after configure, byte-for-byte after uninstall', () => {
+test('codex config.toml with CRLF: valid TOML after configure, byte-for-byte after uninstall', () => {
   const home = mkHome();
   const f = files(home);
   const original = 'model = "o3"\r\n\r\n[profiles.fast]\r\nmodel = "o4-mini"\r\n';
@@ -551,7 +551,7 @@ test('codex: [mcp_servers.vibe-review] defined outside our markers → throws, c
   assertThrowsUnchanged(f.codexToml, () => configureAgent('codex', ctxFor(home)), 'conflict not detected');
 });
 
-test('[BUG] codex: conflicting table written in other valid TOML spellings is detected (no duplicate table emitted)', () => {
+test('codex: conflicting table written in other valid TOML spellings is detected (no duplicate table emitted)', () => {
   const spellings = [
     "[mcp_servers.'vibe-review']\ncommand = \"mine\"\n",
     '[ mcp_servers . "vibe-review" ]\ncommand = "mine"\n',
@@ -567,7 +567,7 @@ test('[BUG] codex: conflicting table written in other valid TOML spellings is de
   }
 });
 
-test('[BUG] codex configure is all-or-nothing: a TOML conflict leaves hooks.json untouched', () => {
+test('codex configure is all-or-nothing: a TOML conflict leaves hooks.json untouched', () => {
   const home = mkHome();
   const f = files(home);
   put(f.codexToml, '[mcp_servers.vibe-review]\ncommand = "mine"\n');
@@ -596,7 +596,7 @@ test('codex: missing end marker — configure refuses and leaves the file intact
   assertThrowsUnchanged(f.codexToml, () => configureAgent('codex', ctxFor(home)), 'configure ran on a half-marked file');
 });
 
-test('[BUG] codex: missing end marker — uninstallAll keeps user content and does not claim success while leaving a dangling server', () => {
+test('codex: missing end marker — uninstallAll keeps user content and does not claim success while leaving a dangling server', () => {
   const home = mkHome();
   const f = files(home);
   installRuntimeStub(home);
@@ -612,7 +612,7 @@ test('[BUG] codex: missing end marker — uninstallAll keeps user content and do
   }
 });
 
-test('[BUG] codex: orphan begin marker followed later by a full block — user tables in between are not deleted', () => {
+test('codex: orphan begin marker followed later by a full block — user tables in between are not deleted', () => {
   const home = mkHome();
   const f = files(home);
   installRuntimeStub(home);
@@ -677,11 +677,11 @@ test('paths with spaces, quotes, backslashes and unicode: hook commands run in s
   assertCommandsRunnable(`Jo "Q" O'Neil back\\slash ünï 日本`);
 });
 
-test('[BUG] paths with shell metacharacters but no spaces (e.g. "R&D(1)"): hook commands still run', { skip: process.platform === 'win32' }, () => {
+test('paths with shell metacharacters but no spaces (e.g. "R&D(1)"): hook commands still run', { skip: process.platform === 'win32' }, () => {
   assertCommandsRunnable('R&D(1);x|y');
 });
 
-test('[BUG] paths with $ and backticks: no shell expansion in hook commands', { skip: process.platform === 'win32' }, () => {
+test('paths with $ and backticks: no shell expansion in hook commands', { skip: process.platform === 'win32' }, () => {
   assertCommandsRunnable('cost$HOME`echo`x');
 });
 
@@ -773,7 +773,7 @@ test('exclude: ensure is idempotent, keeps user lines, and remove restores the f
   assert.equal(read(ex), original);
 });
 
-test('[BUG] exclude: file without trailing newline is restored exactly after ensure → remove', () => {
+test('exclude: file without trailing newline is restored exactly after ensure → remove', () => {
   const repo = mkRepo();
   const ex = excludeOf(repo);
   put(ex, '*.log');
@@ -813,7 +813,7 @@ test('exclude: ensure in a missing info/ dir creates it and git then ignores .vi
   assert.equal(status, '');
 });
 
-test('[BUG] exclude: in a linked git worktree, .vibe-review/ is actually ignored by git', () => {
+test('exclude: in a linked git worktree, .vibe-review/ is actually ignored by git', () => {
   const repo = mkRepo();
   const g = (cwd: string, ...a: string[]) => execFileSync('git', a, { cwd, encoding: 'utf8' });
   g(repo, '-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'init');

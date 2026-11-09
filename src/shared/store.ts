@@ -13,6 +13,9 @@ import {
 } from './types';
 
 export const STORE_DIR = '.vibe-review';
+/** The extension refreshes its heartbeat every 10s; a heartbeat older than this means the window is gone. */
+export const EDITOR_HEARTBEAT_MS = 10_000;
+const EDITOR_STALE_MS = 60_000;
 
 export function newId(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}${randomBytes(3).toString('hex')}`;
@@ -206,17 +209,65 @@ export class ReviewStore {
     // A hook killed by Esc/Ctrl+C never clears its state; treat dead PIDs as not waiting.
     const pid = typeof raw.pid === 'number' ? raw.pid : undefined;
     if (!isAlive(pid)) return { waiting: false };
+    const expires = typeof raw.expires === 'string' ? raw.expires : undefined;
+    if (expires !== undefined && !(Date.parse(expires) > Date.now())) return { waiting: false };
     return {
       waiting: true,
       pid,
       agent: typeof raw.agent === 'string' ? raw.agent : undefined,
       sessionId: typeof raw.sessionId === 'string' ? raw.sessionId : undefined,
       since: typeof raw.since === 'string' ? raw.since : undefined,
+      expires,
     };
   }
 
   setAgentState(state: AgentState): void {
     writeJsonAtomic(this.p('agent.json'), state);
+  }
+
+  // ---- open editors (heartbeat) --------------------------------------------------
+
+  /** Live VS Code windows on this repo, keyed by extension-host PID, with their last heartbeat. */
+  private readEditors(): Record<string, string> {
+    const raw = readJson(this.p('editor.json'));
+    const editors = isObject(raw) && isObject(raw.editors) ? raw.editors : {};
+    const out: Record<string, string> = {};
+    for (const [pid, at] of Object.entries(editors)) {
+      if (/^\d+$/.test(pid) && typeof at === 'string') out[pid] = at;
+    }
+    return out;
+  }
+
+  private writeEditors(update: (editors: Record<string, string>) => void): void {
+    const file = this.p('editor.json');
+    withLock(file, () => {
+      const editors = this.readEditors();
+      update(editors);
+      // Prune windows that crashed without saying goodbye.
+      for (const pid of Object.keys(editors)) if (!isAlive(Number(pid))) delete editors[pid];
+      writeJsonAtomic(file, { editors });
+    });
+  }
+
+  /** Called periodically by the extension so agents only wait while someone can submit a review. */
+  markEditorOpen(pid = process.pid): void {
+    this.writeEditors((e) => {
+      e[String(pid)] = now();
+    });
+  }
+
+  markEditorClosed(pid = process.pid): void {
+    if (!fs.existsSync(this.p('editor.json'))) return;
+    this.writeEditors((e) => {
+      delete e[String(pid)];
+    });
+  }
+
+  /** True if a VS Code window with Vibe Review is open on this repo (live PID, recent heartbeat). */
+  isEditorOpen(): boolean {
+    return Object.entries(this.readEditors()).some(
+      ([pid, at]) => isAlive(Number(pid)) && Date.now() - Date.parse(at) < EDITOR_STALE_MS,
+    );
   }
 
   sendSignal(action: SignalAction): Signal {

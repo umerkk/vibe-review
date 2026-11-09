@@ -3,5 +3,5 @@ dist/
 *.vsix
 .vibe-review/
 .DS_Store
-test/.adv-setup-tmp/
+test/.setup-tmp/
 .local-review/

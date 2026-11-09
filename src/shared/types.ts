@@ -52,6 +52,8 @@ export interface AgentState {
   sessionId?: string;
   pid?: number;
   since?: string;
+  /** Lease end for waiters that poll in short calls (MCP `wait_for_review`). */
+  expires?: string;
 }
 
 export type SignalAction = 'approve' | 'discard';

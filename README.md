@@ -4,6 +4,17 @@
 
 Leave comments on your uncommitted changes in VS Code and click **Submit**. Your coding agent in the terminal (**Claude Code**, **Codex CLI** or **GitHub Copilot CLI**) picks up the comments, fixes the code, replies on each thread, and waits for your next round. When you're happy, click **Approve**.
 
+### See it in action
+
+![Vibe Review demo: comment on a changed line, submit the review, GitHub Copilot CLI fixes the code and replies on the thread, then resolve it](docs/media/demo.gif)
+
+1. **Comment** on a changed line, the same way you would in a GitHub pull request.
+2. **Submit** the review. The agent waiting in the terminal picks it up immediately.
+3. The agent **fixes the code** and **replies on the thread**. The thread turns **Active**.
+4. **Resolve** the thread to accept the fix, or reply to send it back.
+
+<sub>A real recording with GitHub Copilot CLI. The part where the agent is working is sped up.</sub>
+
 ```
 agent edits code → finishes its turn → waits for you ⏸
   → you comment in VS Code → Submit → agent fixes the code and replies on threads → waits again ⏸
@@ -210,6 +221,7 @@ Hover a comment or thread to see its actions:
 - Click **Approve** or **Discard Review** in VS Code, or
 - press `Esc` (or `Ctrl+C`) in the agent's terminal, or
 - turn Review Mode off, or
+- close VS Code (or the window for this project). The agent only waits while VS Code is open on the project, or
 - wait. After 30 minutes the agent stops by itself, and your pending comments are kept. See [Settings](#settings).
 
 ---
@@ -231,14 +243,14 @@ Open **Settings** (`Cmd+,` / `Ctrl+,`) and search for **Vibe Review**.
 |---|---|
 | **There's no "Vibe Review" section in Source Control.** | The opened folder must be (inside) a git repository. Run `git init` if it isn't. Then reload VS Code: Command Palette → **Developer: Reload Window**. If it's still missing, it may be hidden: click the `···` menu at the top of the Source Control view and tick **Vibe Review**. |
 | **No `+` appears when I hover a line.** | You can only comment on **changed** lines, just like a PR. New (untracked) files can be commented anywhere. If the file just changed, click ↻ **Refresh**. |
-| **The agent finished without waiting for me.** | 1) The status bar must say **Review: On**. 2) The project must have uncommitted changes. 3) You must have restarted the agent after setup. 4) **Codex:** trust the hooks via `/hooks`. 5) Start the agent from inside the project folder. |
+| **The agent finished without waiting for me.** | 1) The status bar must say **Review: On**. 2) The project must have uncommitted changes. 3) VS Code must be open on the project: agents never wait for a review when no VS Code window has it open. 4) You must have restarted the agent after setup. 5) **Codex:** trust the hooks via `/hooks`. 6) Start the agent from inside the project folder. |
 | **`/mcp` doesn't list `vibe-review`.** | Re-run **Vibe Review: Set Up Agents** for that agent, then fully restart the agent. |
 | **I submitted, but the agent didn't react.** | The status bar shows ✉ **not yet picked up**: the agent wasn't waiting. Type any message (e.g. `review`) in the agent's terminal. Alternatively, click **Copy Review** in the notification that appears after submitting and paste it into the agent. |
 | **The agent stops waiting after a few rounds.** | Claude Code and Copilot CLI allow at most 8 automatic continuations in a row. Type any message in the agent's terminal to continue; your next review is picked up then. |
 | **Setup says a config file is invalid, damaged or not writable.** | Nothing was changed. Fix the file named in the message (for example invalid JSON, a hand-edited `# >>> vibe-review >>>` block in `~/.codex/config.toml`, or read-only permissions), then run setup again. Your original is in `<file>.vibe-review.bak` if setup changed it before. |
 | **Hooks stopped working after I updated Node.js** (e.g. with `nvm`). | Setup saved the full path to your `node` at that time. Re-run **Vibe Review: Set Up Agents**, then restart the agent. |
 | **The agent waits even though I don't want to review.** | Turn Review Mode **off**, or click **Approve**. |
-| **Something else.** | Look in the hidden `.vibe-review/` folder in your project. It holds plain JSON files: your threads, reviews, and `agent.json` (whether an agent is waiting). Deleting the folder resets all review state for that project. |
+| **Something else.** | Look in the hidden `.vibe-review/` folder in your project. It holds plain JSON files: your threads, reviews, `agent.json` (whether an agent is waiting) and `editor.json` (which VS Code windows are open on the project). Deleting the folder resets all review state for that project. |
 
 ---
 

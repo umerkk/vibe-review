@@ -40,7 +40,7 @@ function gitAllow(cwd: string, args: string[]): string {
 
 /** Fresh repo with local identity. Caller deletes `cleanup`. The repo is nested so siblings stay private. */
 function initRepo(name = 'repo'): { root: string; cleanup: () => void } {
-  const parent = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'lr-adv-')));
+  const parent = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'vr-')));
   const root = path.join(parent, name);
   fs.mkdirSync(root, { recursive: true });
   git(root, ['init', '-q', '-b', 'main']);
@@ -338,7 +338,7 @@ test('git: empty repo has no HEAD; staged ranges still cover the index', () => {
     assert.equal(getHeadContent(root, 's.txt'), '');
     assert.deepEqual(getChangedLineRanges(root, 's.txt'), [[0, 0]]);
     assert.equal(getChangedFiles(path.join(root, 'nope')).length, 0);
-    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-adv-norepo-'));
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'vr-norepo-'));
     try {
       assert.equal(findRepoRoot(outside), undefined);
     } finally {
