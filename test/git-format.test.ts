@@ -127,7 +127,9 @@ test('git: unusual names stay literal under quotepath, including newline and NFD
     }
     const uni = files.find((f) => f.path.normalize('NFC') === nfd.normalize('NFC'));
     assert.ok(uni, 'combining-character filename was dropped');
-    assert.equal(uni.path, uni.path.normalize('NFC'), 'core.precomposeunicode path should be usable NFC, not a quoted blob');
+    // macOS git precomposes to NFC (core.precomposeunicode); elsewhere the on-disk bytes are kept.
+    const expected = process.platform === 'darwin' ? nfd.normalize('NFC') : nfd;
+    assert.equal(uni.path, expected, 'combining-character path should be the usable on-disk name, not a quoted blob');
 
     commitAll(root);
     fs.writeFileSync(path.join(root, '-dash.txt'), 'DASH\n');
@@ -287,7 +289,7 @@ test('git: submodule pointer change is listed; conflict entries do not swallow t
     commitAll(root, 'add sub');
     fs.writeFileSync(path.join(root, 'vendor', 's.txt'), 'changed\n');
     git(path.join(root, 'vendor'), ['add', 's.txt']);
-    git(path.join(root, 'vendor'), ['commit', '-qm', 'sub']);
+    git(path.join(root, 'vendor'), ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'sub']);
     const sub = getChangedFiles(root).find((f) => f.path === 'vendor');
     assert.ok(sub, 'dirty submodule missing from status');
     assert.equal(sub.kind, 'modified');
