@@ -1,6 +1,6 @@
 {
   "name": "vibe-review",
-  "displayName": "Vibe Review: Local PR Review for AI Agents (Claude Code, Codex, Copilot)",
+  "displayName": "Vibe Review: Review AI Agent Code Like a PR (Claude Code, Codex, Copilot)",
   "description": "PR-style code review for your AI agent's uncommitted changes. Comment in VS Code; Claude Code, Codex CLI or GitHub Copilot CLI fixes the code and replies. Fully local.",
   "keywords": [
     "ai code review",
