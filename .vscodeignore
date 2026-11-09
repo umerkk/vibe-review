@@ -12,3 +12,4 @@ esbuild.mjs
 .DS_Store
 **/.DS_Store
 docs/**
+.github/**

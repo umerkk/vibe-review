@@ -131,7 +131,7 @@ Agents read hooks and MCP servers only when they start, so restart any open agen
 
 ### Step 5 — Turn on Review Mode (once per project)
 
-Review Mode tells the agent to **wait for your review after every turn** in this project.
+Review Mode tells the agent to **wait for your review after every turn** in this project, as long as VS Code is open on it.
 
 1. Open the **Source Control** view: click the branch icon in the left sidebar, or press `Ctrl+Shift+G`.
 2. Find the **Vibe Review** section in that view. It lists your uncommitted files. If it's collapsed, click its title.
@@ -141,7 +141,7 @@ Review Mode tells the agent to **wait for your review after every turn** in this
 
 The status bar now shows **👁 Review: On**. You're ready. 🎉
 
-> In projects where Review Mode is off, the hooks do nothing, so leaving them installed is harmless.
+> In projects where Review Mode is off, the hooks do nothing, so leaving them installed is harmless. The same goes for projects that aren't open in VS Code: if you close VS Code with Review Mode still on, your agent simply doesn't wait.
 
 ---
 
@@ -153,7 +153,7 @@ The status bar now shows **👁 Review: On**. You're ready. 🎉
    - a notification says *"… finished and is waiting for your review."*
 3. **Open the changes.** In **Source Control → Vibe Review**, click a file. A side-by-side diff opens (last commit on the left, your working copy on the right).
 4. **Comment on a line.** Hover a changed line on the right side. A **`+`** appears in the gutter next to the line numbers. Click it, or drag over several lines first to comment on a range.
-5. **Write your comment** and click **Add Comment**. Markdown works, and you can paste screenshots, see [Screenshots and rich text](#screenshots-and-rich-text). It's marked **Pending**: the agent doesn't see it yet, the same as a pending PR review. Add as many comments as you like across files.
+5. **Write your comment** and click **Add Comment**, or press `Cmd+Enter` / `Ctrl+Enter`. Markdown works, and you can paste screenshots, see [Screenshots and rich text](#screenshots-and-rich-text). It's marked **Pending**: the agent doesn't see it yet, the same as a pending PR review. Add as many comments as you like across files.
 6. **Submit.** Click the **send** icon (➤) in the Vibe Review title bar, or click the status bar and choose **Submit Review**. You can type an optional overall comment, then press `Enter`.
 7. **Watch the agent work.** It gets every comment with its file, lines and code, makes the fixes, and **replies on each thread**. Replies appear right in your editor, and the thread becomes **Active**, waiting for you to accept it.
 8. **Accept or push back.** Happy with a fix? Click **Resolve** (✓) on the thread. Not yet? Reply on it: the thread goes back to **Pending**. Then Submit for another round, or click **Approve** in the Vibe Review title bar to let the agent stop.
@@ -284,11 +284,13 @@ Everything runs on your machine. Vibe Review has **no telemetry and no accounts 
 | Piece | Role |
 |---|---|
 | **VS Code extension** | Shows changed files, lets you comment via VS Code's native comments UI, and writes threads and reviews as JSON into `.vibe-review/`. |
-| **Stop hook** (`hook.js stop <agent>`) | Runs when the agent finishes a turn. With Review Mode on and uncommitted changes, it waits until you Submit. Then it returns `{"decision":"block","reason":<your review>}`, which all three agents treat as a new instruction to continue. Approve, Discard, the timeout or Esc let the agent stop. |
+| **Stop hook** (`hook.js stop <agent>`) | Runs when the agent finishes a turn. With Review Mode on, uncommitted changes, and VS Code open on the project, it waits until you Submit. Then it returns `{"decision":"block","reason":<your review>}`, which all three agents treat as a new instruction to continue. Approve, Discard, the timeout, Esc, or closing VS Code let the agent stop. |
 | **Prompt hook** (`hook.js prompt <agent>`) | Runs when you send the agent a message. If a submitted review hasn't been delivered yet, it attaches the review to your message. |
-| **MCP server** (`mcp.js`) | Tools the agent uses: `get_review`, `list_threads`, `reply_to_thread`, `resolve_thread`, and `wait_for_review` (for setups without hooks). |
+| **MCP server** (`mcp.js`) | Tools the agent uses: `get_review`, `list_threads`, `reply_to_thread`, `resolve_thread`, and `wait_for_review` (for setups without hooks). While `wait_for_review` runs, VS Code shows the agent as waiting, and it returns at once if VS Code isn't open on the project. |
 
 Each review is delivered **exactly once**. Delivery is claimed atomically, so two agents or two hooks never both receive it. When the agent moves code around, threads follow the commented lines.
+
+While a project is open, each VS Code window records a heartbeat in `.vibe-review/editor.json` every few seconds. Agents only wait for a review while at least one window is alive, so a window closed (or crashed) with Review Mode on never leaves an agent stuck.
 </details>
 
 ---
@@ -316,6 +318,17 @@ code --install-extension vibe-review-0.1.0.vsix
 ```
 
 To debug, open the folder in VS Code and press `F5` to launch an Extension Development Host.
+
+### Releasing
+
+Releases are published by [`.github/workflows/release.yml`](.github/workflows/release.yml):
+
+```sh
+npm version patch   # bumps package.json and creates tag v0.1.1
+git push --follow-tags
+```
+
+The workflow tests and packages the extension, publishes it to the VS Code Marketplace via [Trusted Publishing](https://code.visualstudio.com/api/working-with-extensions/publishing-extension#secure-automated-publishing-to-visual-studio-marketplace) (OIDC, no token stored) and to Open VSX if `OVSX_PAT` is set, and creates a GitHub release with the `.vsix` attached. Running the workflow manually from the Actions tab is a dry run: it builds, tests and uploads the `.vsix` as an artifact without publishing.
 
 ## License
 
