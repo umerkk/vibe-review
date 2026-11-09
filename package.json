@@ -1,0 +1,361 @@
+{
+  "name": "vibe-review",
+  "displayName": "Vibe Review: Local PR Review for AI Agents (Claude Code, Codex, Copilot)",
+  "description": "PR-style code review for your AI agent's uncommitted changes. Comment in VS Code; Claude Code, Codex CLI or GitHub Copilot CLI fixes the code and replies. Fully local.",
+  "keywords": [
+    "ai code review",
+    "vibe coding",
+    "code review",
+    "pr review",
+    "pull request",
+    "claude code",
+    "codex",
+    "copilot cli",
+    "github copilot",
+    "mcp",
+    "ai agent",
+    "coding agent",
+    "agentic",
+    "diff",
+    "uncommitted changes",
+    "local",
+    "review comments",
+    "llm"
+  ],
+  "version": "0.1.0",
+  "publisher": "umerkk",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/umerkk/vibe-review.git"
+  },
+  "homepage": "https://github.com/umerkk/vibe-review#readme",
+  "bugs": {
+    "url": "https://github.com/umerkk/vibe-review/issues"
+  },
+  "engines": {
+    "vscode": "^1.97.0"
+  },
+  "categories": [
+    "SCM Providers",
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "workspaceContains:.git",
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "views": {
+      "scm": [
+        {
+          "id": "vibeReview.changes",
+          "name": "Vibe Review",
+          "when": "vibeReview.active"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "vibeReview.submit",
+        "title": "Submit Review",
+        "category": "Vibe Review",
+        "icon": "$(send)"
+      },
+      {
+        "command": "vibeReview.approve",
+        "title": "Approve",
+        "category": "Vibe Review",
+        "icon": "$(pass)"
+      },
+      {
+        "command": "vibeReview.discard",
+        "title": "Discard Review",
+        "category": "Vibe Review",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "vibeReview.modeOn",
+        "title": "Turn Review Mode On",
+        "category": "Vibe Review",
+        "icon": "$(eye-closed)"
+      },
+      {
+        "command": "vibeReview.modeOff",
+        "title": "Turn Review Mode Off",
+        "category": "Vibe Review",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "vibeReview.toggleMode",
+        "title": "Toggle Review Mode",
+        "category": "Vibe Review"
+      },
+      {
+        "command": "vibeReview.refresh",
+        "title": "Refresh",
+        "category": "Vibe Review",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "vibeReview.actions",
+        "title": "Show Actions",
+        "category": "Vibe Review"
+      },
+      {
+        "command": "vibeReview.setupAgents",
+        "title": "Set Up Agents (Hooks + MCP)…",
+        "category": "Vibe Review"
+      },
+      {
+        "command": "vibeReview.uninstall",
+        "title": "Uninstall (Remove Hooks, MCP Server & Data)…",
+        "category": "Vibe Review"
+      },
+      {
+        "command": "vibeReview.openDiff",
+        "title": "Open Diff",
+        "category": "Vibe Review"
+      },
+      {
+        "command": "vibeReview.revealThread",
+        "title": "Reveal Thread",
+        "category": "Vibe Review"
+      },
+      {
+        "command": "vibeReview.createComment",
+        "title": "Add Comment",
+        "category": "Vibe Review",
+        "enablement": "!commentIsEmpty"
+      },
+      {
+        "command": "vibeReview.replyComment",
+        "title": "Reply",
+        "category": "Vibe Review",
+        "enablement": "!commentIsEmpty"
+      },
+      {
+        "command": "vibeReview.resolveThread",
+        "title": "Resolve",
+        "category": "Vibe Review",
+        "icon": "$(check)"
+      },
+      {
+        "command": "vibeReview.reopenThread",
+        "title": "Reopen",
+        "category": "Vibe Review",
+        "icon": "$(issue-reopened)"
+      },
+      {
+        "command": "vibeReview.deleteThread",
+        "title": "Delete Thread",
+        "category": "Vibe Review",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "vibeReview.editComment",
+        "title": "Edit",
+        "category": "Vibe Review",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "vibeReview.deleteComment",
+        "title": "Delete",
+        "category": "Vibe Review",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "vibeReview.saveComment",
+        "title": "Save",
+        "category": "Vibe Review"
+      },
+      {
+        "command": "vibeReview.cancelEditComment",
+        "title": "Cancel",
+        "category": "Vibe Review"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "vibeReview.openDiff",
+          "when": "false"
+        },
+        {
+          "command": "vibeReview.revealThread",
+          "when": "false"
+        },
+        {
+          "command": "vibeReview.createComment",
+          "when": "false"
+        },
+        {
+          "command": "vibeReview.replyComment",
+          "when": "false"
+        },
+        {
+          "command": "vibeReview.resolveThread",
+          "when": "false"
+        },
+        {
+          "command": "vibeReview.reopenThread",
+          "when": "false"
+        },
+        {
+          "command": "vibeReview.deleteThread",
+          "when": "false"
+        },
+        {
+          "command": "vibeReview.editComment",
+          "when": "false"
+        },
+        {
+          "command": "vibeReview.deleteComment",
+          "when": "false"
+        },
+        {
+          "command": "vibeReview.saveComment",
+          "when": "false"
+        },
+        {
+          "command": "vibeReview.cancelEditComment",
+          "when": "false"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "vibeReview.submit",
+          "when": "view == vibeReview.changes",
+          "group": "navigation@1"
+        },
+        {
+          "command": "vibeReview.approve",
+          "when": "view == vibeReview.changes",
+          "group": "navigation@2"
+        },
+        {
+          "command": "vibeReview.modeOn",
+          "when": "view == vibeReview.changes && vibeReview.mode != on",
+          "group": "navigation@3"
+        },
+        {
+          "command": "vibeReview.modeOff",
+          "when": "view == vibeReview.changes && vibeReview.mode == on",
+          "group": "navigation@3"
+        },
+        {
+          "command": "vibeReview.refresh",
+          "when": "view == vibeReview.changes",
+          "group": "navigation@4"
+        },
+        {
+          "command": "vibeReview.discard",
+          "when": "view == vibeReview.changes",
+          "group": "1_review"
+        },
+        {
+          "command": "vibeReview.setupAgents",
+          "when": "view == vibeReview.changes",
+          "group": "2_setup"
+        },
+        {
+          "command": "vibeReview.uninstall",
+          "when": "view == vibeReview.changes",
+          "group": "2_setup@2"
+        }
+      ],
+      "comments/commentThread/context": [
+        {
+          "command": "vibeReview.createComment",
+          "group": "inline",
+          "when": "commentController == vibe-review && commentThreadIsEmpty"
+        },
+        {
+          "command": "vibeReview.replyComment",
+          "group": "inline",
+          "when": "commentController == vibe-review && !commentThreadIsEmpty"
+        }
+      ],
+      "comments/commentThread/title": [
+        {
+          "command": "vibeReview.resolveThread",
+          "group": "inline@1",
+          "when": "commentController == vibe-review && commentThread =~ /^(pending|active)$/"
+        },
+        {
+          "command": "vibeReview.reopenThread",
+          "group": "inline@1",
+          "when": "commentController == vibe-review && commentThread == resolved"
+        },
+        {
+          "command": "vibeReview.deleteThread",
+          "group": "inline@2",
+          "when": "commentController == vibe-review && !commentThreadIsEmpty"
+        }
+      ],
+      "comments/comment/title": [
+        {
+          "command": "vibeReview.editComment",
+          "group": "inline@1",
+          "when": "commentController == vibe-review && comment == draft"
+        },
+        {
+          "command": "vibeReview.deleteComment",
+          "group": "inline@2",
+          "when": "commentController == vibe-review && comment == draft"
+        }
+      ],
+      "comments/comment/context": [
+        {
+          "command": "vibeReview.cancelEditComment",
+          "group": "inline@1",
+          "when": "commentController == vibe-review"
+        },
+        {
+          "command": "vibeReview.saveComment",
+          "group": "inline@2",
+          "when": "commentController == vibe-review"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Vibe Review",
+      "properties": {
+        "vibeReview.waitTimeoutMinutes": {
+          "type": "number",
+          "default": 30,
+          "minimum": 1,
+          "maximum": 55,
+          "description": "With Review Mode on, how long an agent waits for your review after finishing a turn before it stops anyway. Your draft is kept."
+        },
+        "vibeReview.useGitHubAvatar": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the avatar of the GitHub account you're signed in to in VS Code on your comments (loaded from avatars.githubusercontent.com). Never prompts you to sign in. When off, or not signed in, a placeholder avatar is used."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:uninstall": "node ./dist/uninstall.js",
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test --import tsx test/*.test.ts",
+    "package": "npm run typecheck && npm run build && vsce package --no-dependencies"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "turndown": "^7.2.5",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "@types/turndown": "^5.0.6",
+    "@types/vscode": "~1.97.0",
+    "@vscode/vsce": "^3.9.2",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}

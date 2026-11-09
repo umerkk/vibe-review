@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.vsix
+.vibe-review/
+.DS_Store
+test/.adv-setup-tmp/
+.local-review/
