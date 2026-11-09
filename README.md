@@ -1,5 +1,9 @@
 # Vibe Review
 
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/muumer.vibe-review?label=VS%20Code%20Marketplace&logo=visualstudiocode&color=2563eb)](https://marketplace.visualstudio.com/items?itemName=muumer.vibe-review)
+[![Installs](https://img.shields.io/visual-studio-marketplace/i/muumer.vibe-review?color=2563eb)](https://marketplace.visualstudio.com/items?itemName=muumer.vibe-review)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 **Review your AI agent's code the way you review a pull request, without leaving VS Code or pushing anything.**
 
 Leave comments on your uncommitted changes in VS Code and click **Submit**. Your coding agent in the terminal (**Claude Code**, **Codex CLI** or **GitHub Copilot CLI**) picks up the comments, fixes the code, replies on each thread, and waits for your next round. When you're happy, click **Approve**.
@@ -25,6 +29,8 @@ agent edits code → finishes its turn → waits for you ⏸
 - **Works like a PR review.** Comments on changed lines, pending drafts, threaded replies, resolve and reopen.
 - **Screenshots and formatting.** Paste screenshots and rich text into comments. The agent gets the images too.
 - **Works with the agent you already use.** Claude Code, Codex CLI, GitHub Copilot CLI, or all three.
+
+**[⬇ Install from the VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=muumer.vibe-review)**, then follow the [Quick start](#quick-start-about-5-minutes).
 
 ---
 
@@ -59,34 +65,37 @@ agent edits code → finishes its turn → waits for you ⏸
 
 ## Quick start (about 5 minutes)
 
-You only do steps 1–4 once. You do step 5 once in each project.
+You only do steps 1–3 once. You do step 4 once in each project.
 
-### Step 1 — Download the extension
+### Step 1 — Install the extension
 
-1. Go to the [**Releases** page](https://github.com/umerkk/vibe-review/releases) of this repository.
-2. Under the latest release, open **Assets** and download the file ending in **`.vsix`** (for example `vibe-review-0.1.0.vsix`).
+**[Install Vibe Review from the VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=muumer.vibe-review)** and click **Install**, or:
 
-### Step 2 — Install it in VS Code
+1. In VS Code, open the **Extensions** view: click the four-squares icon in the left sidebar, or press `Cmd+Shift+X` (macOS) or `Ctrl+Shift+X` (Windows/Linux).
+2. Search for **Vibe Review** and click **Install**.
 
-Choose **one** of these:
+VS Code keeps it up to date automatically.
 
-**Option A: from inside VS Code (easiest)**
+<details>
+<summary><b>Other ways to install (terminal, or a <code>.vsix</code> file)</b></summary>
 
-1. Open the **Extensions** view: click the four-squares icon in the left sidebar, or press `Cmd+Shift+X` (macOS) or `Ctrl+Shift+X` (Windows/Linux).
-2. Click the **`···`** (More Actions) button at the top right of the Extensions view.
-3. Choose **Install from VSIX…**.
-4. Select the `.vsix` file you downloaded.
-5. Wait for the *"Completed installing extension"* notification.
-
-**Option B: from a terminal**
+From a terminal:
 
 ```sh
-code --install-extension ~/Downloads/vibe-review-0.1.0.vsix
+code --install-extension muumer.vibe-review
 ```
 
-> **`code: command not found`?** In VS Code, open the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`), run **Shell Command: Install 'code' command in PATH**, open a new terminal and try again. Or use Option A.
+> **`code: command not found`?** In VS Code, open the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`), run **Shell Command: Install 'code' command in PATH**, then open a new terminal.
 
-### Step 3 — Connect your agent
+From a `.vsix` file (for a specific version, or a machine without Marketplace access):
+
+1. Download the `.vsix` from the [**Releases** page](https://github.com/umerkk/vibe-review/releases) (under **Assets**).
+2. In the Extensions view, click **`···`** (More Actions) → **Install from VSIX…** and pick the file. Or run `code --install-extension path/to/vibe-review-<version>.vsix`.
+
+A `.vsix` install doesn't auto-update.
+</details>
+
+### Step 2 — Connect your agent
 
 This step teaches your agent to wait for your review and to reply to your comments. You run it from VS Code.
 
@@ -116,7 +125,7 @@ It copies two small scripts (a *hook* and an *MCP server*) to `~/.vibe-review/bi
 The first time Vibe Review changes a file, it saves the original next to it as `<file>.vibe-review.bak`. Later runs never overwrite that backup. Other settings in those files are left untouched, and running setup again is safe. If a file can't be parsed or isn't writable, setup stops without changing anything and tells you which file to fix.
 </details>
 
-### Step 4 — Restart your agent
+### Step 3 — Restart your agent
 
 Agents read hooks and MCP servers only when they start, so restart any open agent session.
 
@@ -129,7 +138,7 @@ Agents read hooks and MCP servers only when they start, so restart any open agen
 3. **Codex CLI only:** Codex won't run new hooks until you trust them. Type `/hooks` and trust the two **vibe-review** hooks.
 4. **Check it worked:** type `/mcp` in the agent. You should see **`vibe-review`** in the list, connected.
 
-### Step 5 — Turn on Review Mode (once per project)
+### Step 4 — Turn on Review Mode (once per project)
 
 Review Mode tells the agent to **wait for your review after every turn** in this project, as long as VS Code is open on it.
 
@@ -175,7 +184,7 @@ Hover the **Vibe Review** section title in Source Control to see its buttons. Th
 | 👁 **Review Mode On / Off** | On: the agent waits for you after every turn. Off: the agent behaves normally. |
 | ↻ **Refresh** | Re-reads git changes, which normally happens automatically. |
 | `···` → **Discard Review** | Deletes your pending comments and lets a waiting agent stop. |
-| `···` → **Set Up Agents…** | Re-runs setup from [Step 3](#step-3--connect-your-agent), or removes it from selected agents. |
+| `···` → **Set Up Agents…** | Re-runs setup from [Step 2](#step-2--connect-your-agent), or removes it from selected agents. |
 | `···` → **Uninstall…** | One-click cleanup. See [Uninstall](#uninstall). |
 
 ### Comments and threads
@@ -312,9 +321,9 @@ Only needed if you want to change the extension or build the `.vsix` yourself.
 git clone https://github.com/umerkk/vibe-review.git
 cd vibe-review
 npm install
-npm test            # builds, then runs end-to-end tests (git repos, hook processes, MCP over stdio, setup)
-npm run package     # → vibe-review-0.1.0.vsix
-code --install-extension vibe-review-0.1.0.vsix
+npm test            # builds, then runs all tests (store, git parsing, hooks, MCP over stdio, setup, end-to-end)
+npm run package     # → vibe-review-<version>.vsix
+code --install-extension vibe-review-*.vsix
 ```
 
 To debug, open the folder in VS Code and press `F5` to launch an Extension Development Host.
