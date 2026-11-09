@@ -24,6 +24,11 @@
   ],
   "version": "0.1.0",
   "publisher": "muumer",
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#F7F8FA",
+    "theme": "light"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
