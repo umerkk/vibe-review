@@ -1,7 +1,6 @@
 # Vibe Review
 
-[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/muumer.vibe-review?label=VS%20Code%20Marketplace&logo=visualstudiocode&color=2563eb)](https://marketplace.visualstudio.com/items?itemName=muumer.vibe-review)
-[![Installs](https://img.shields.io/visual-studio-marketplace/i/muumer.vibe-review?color=2563eb)](https://marketplace.visualstudio.com/items?itemName=muumer.vibe-review)
+[![Install from VS Code Marketplace](https://img.shields.io/badge/VS%20Code%20Marketplace-Install-2563eb?logo=visualstudiocode&logoColor=white)](https://marketplace.visualstudio.com/items?itemName=muumer.vibe-review)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 **Review your AI agent's code the way you review a pull request, without leaving VS Code or pushing anything.**
