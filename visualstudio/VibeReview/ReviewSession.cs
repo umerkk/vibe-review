@@ -152,15 +152,11 @@ namespace VibeReview
             string? folder = null;
             if (await VS.Services.GetSolutionAsync() is IVsSolution solution)
             {
-                if (solution.GetProperty((int)__VSPROPID.VSPROPID_IsSolutionOpen, out var open) == 0 && open is bool isOpen && isOpen
-                    && solution.GetSolutionInfo(out var dir, out _, out _) == 0 && !string.IsNullOrEmpty(dir))
+                if (solution.GetProperty((int)__VSPROPID.VSPROPID_IsSolutionOpen, out var open) == 0 && open is bool isOpen && isOpen)
                 {
-                    folder = dir;
-                }
-                // Open Folder mode: the "solution directory" is the opened folder.
-                if (folder == null && solution.GetProperty((int)__VSPROPID.VSPROPID_SolutionDirectory, out var sd) == 0 && sd is string s && s.Length > 0)
-                {
-                    folder = s;
+                    if (solution.GetSolutionInfo(out var dir, out _, out _) == 0 && !string.IsNullOrEmpty(dir)) folder = dir;
+                    // Open Folder mode: the "solution directory" is the opened folder.
+                    else if (solution.GetProperty((int)__VSPROPID.VSPROPID_SolutionDirectory, out var sd) == 0 && sd is string s && s.Length > 0) folder = s;
                 }
             }
             _folder = folder;

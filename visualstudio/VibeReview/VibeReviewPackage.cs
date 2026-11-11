@@ -19,7 +19,6 @@ namespace VibeReview
     [ProvideAutoLoad(VSConstants.UICONTEXT.SolutionExists_string, PackageAutoLoadFlags.BackgroundLoad)]
     [ProvideAutoLoad(VSConstants.UICONTEXT.FolderOpened_string, PackageAutoLoadFlags.BackgroundLoad)]
     [ProvideToolWindow(typeof(ReviewToolWindow.Pane), Style = VsDockStyle.Tabbed, Window = WindowGuids.SolutionExplorer)]
-    [ProvideToolWindowVisibility(typeof(ReviewToolWindow.Pane), VSConstants.UICONTEXT.SolutionExists_string)]
     [ProvideOptionPage(typeof(OptionsProvider.GeneralOptions), "Vibe Review", "General", 0, 0, true, SupportsProfiles = true)]
     public sealed class VibeReviewPackage : ToolkitPackage
     {

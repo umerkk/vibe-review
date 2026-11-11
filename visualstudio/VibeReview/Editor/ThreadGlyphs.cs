@@ -34,7 +34,7 @@ namespace VibeReview.Editor
         public ITagger<T>? CreateTagger<T>(ITextBuffer buffer) where T : ITag
         {
             if (EditorSelection.TryGetDocument(buffer) == null) return null;
-            return buffer.Properties.GetOrCreateSingletonProperty(() => new ThreadGlyphTagger(buffer)) as ITagger<T>;
+            return new ThreadGlyphTagger(buffer) as ITagger<T>;
         }
     }
 

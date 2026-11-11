@@ -49,6 +49,7 @@ namespace VibeReview.ToolWindow
         private string? _selectedThreadId;
         private string? _renderedThreadKey;
         private CommentTextBox? _reply;
+        private string? _replyThreadId;
         private string? _editingCommentId;
 
         public ReviewControl(ReviewSession session)
@@ -361,9 +362,11 @@ namespace VibeReview.ToolWindow
             var key = thread == null ? "" : Newtonsoft.Json.JsonConvert.SerializeObject(thread) + "|" + _editingCommentId;
             if (key == _renderedThreadKey && _detail.Children.Count > 0) return;
             _renderedThreadKey = key;
-            var draftReply = _reply?.Text;
+            // Keep a half-typed reply when the same thread re-renders (e.g. the agent replied meanwhile).
+            var draftReply = thread != null && _replyThreadId == thread.Id ? _reply?.Text : null;
             _detail.Children.Clear();
             _reply = null;
+            _replyThreadId = null;
 
             if (state == null) return;
             if (thread == null)
@@ -396,6 +399,7 @@ namespace VibeReview.ToolWindow
 
             var actions = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
             _reply = new CommentTextBox { Text = draftReply ?? "", Margin = new Thickness(0, 6, 0, 4) };
+            _replyThreadId = thread.Id;
             _reply.SubmitRequested += (_, __) => SendReply(thread);
             _detail.Children.Add(new TextBlock { Text = "Reply", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 8, 0, 0) });
             _detail.Children.Add(_reply);
@@ -468,8 +472,14 @@ namespace VibeReview.ToolWindow
                 {
                     var body = editor.Text.Trim();
                     if (body.Length == 0) return;
-                    _editingCommentId = null;
-                    Run(() => _session.RunAsync("edit-comment", new { threadId = thread.Id, commentId = comment.Id, body }));
+                    Run(async () =>
+                    {
+                        if (await _session.RunAsync("edit-comment", new { threadId = thread.Id, commentId = comment.Id, body }) == null) return;
+                        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                        _editingCommentId = null;
+                        _renderedThreadKey = null;
+                        RenderDetail(_session.State);
+                    });
                 }
                 editor.SubmitRequested += (_, __) => Save();
                 AddButton(buttons, "Save", "Save (Ctrl+Enter)", () =>
