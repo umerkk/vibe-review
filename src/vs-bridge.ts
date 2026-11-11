@@ -112,10 +112,14 @@ const commands: Record<string, (p: Params) => unknown> = {
     return path.resolve(gitRoot);
   },
 
-  /** Everything the Visual Studio UI shows, in one call. Also re-anchors threads that moved. */
+  /**
+   * Everything the Visual Studio UI shows, in one call. Also re-anchors threads that moved, and
+   * with `pid` doubles as the editor heartbeat so polling needs a single process per tick.
+   */
   state: (p) => {
     const store = storeOf(p);
     const root = store.root;
+    if (p.pid !== undefined && store.exists()) store.markEditorOpen(pid(p));
     const files: ChangedFile[] = getChangedFiles(root);
     const lineCache = new Map<string, string[] | undefined>();
     const threads = store.listThreads().map((t) => {

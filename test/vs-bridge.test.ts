@@ -174,6 +174,9 @@ test('vs-bridge: heartbeat marks Visual Studio open so agents wait; editor-close
   assert.equal(store.isEditorOpen(), true);
   ok('editor-closed', { pid: process.pid });
   assert.equal(store.isEditorOpen(), false);
+  ok('state', { pid: process.pid });
+  assert.equal(store.isEditorOpen(), true, 'state with a pid doubles as the heartbeat');
+  ok('editor-closed', { pid: process.pid });
 
   ok('set-timeout', { waitTimeoutMinutes: 2 });
   assert.equal(store.getConfig().waitTimeoutSec, 120);
