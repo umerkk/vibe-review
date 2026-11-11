@@ -583,7 +583,7 @@ test('MCP: wait_for_review returns at once without an open editor and claims no 
   f.store.markEditorClosed();
   const { call } = await mcp(t, f);
   const start = Date.now();
-  assert.match(text(await call('wait_for_review', { timeout_sec: 30 })), /VS Code is not open/);
+  assert.match(text(await call('wait_for_review', { timeout_sec: 30 })), /No editor \(VS Code or Visual Studio\) is open/);
   assert.ok(Date.now() - start < 3000);
   assert.equal(f.store.getAgentState().waiting, false);
 });
@@ -605,7 +605,7 @@ test('MCP: wait_for_review stops waiting and clears its lease when VS Code close
   await until(() => f.store.getAgentState().waiting);
   const start = Date.now();
   f.store.markEditorClosed();
-  assert.match(text(await waiting), /VS Code is not open/);
+  assert.match(text(await waiting), /No editor \(VS Code or Visual Studio\) is open/);
   assert.ok(Date.now() - start < 3000);
   assert.equal(f.store.getAgentState().waiting, false);
 });

@@ -329,7 +329,7 @@ function configureCodex(ctx: SetupContext, install: boolean, writes: Writes): Se
           type: 'command',
           command: hookCommand(ctx, 'stop', 'codex'),
           timeout: STOP_HOOK_TIMEOUT_SEC,
-          statusMessage: 'Waiting for your review in VS Code (Vibe Review)',
+          statusMessage: 'Waiting for your review in VS Code or Visual Studio (Vibe Review)',
         }
       : undefined);
     setMatcherGroupHook(hooksFile, hooks, 'UserPromptSubmit', install

@@ -1,8 +1,8 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import TurndownService from 'turndown';
 import * as vscode from 'vscode';
-import { extForMime, isImagePath, saveAttachment } from '../shared/attachments';
+import { extForMime, imageMarkdown, isImagePath, saveAttachment } from '../shared/attachments';
+import { htmlToMarkdown } from '../shared/html';
 
 const IMAGE_KIND = vscode.DocumentDropOrPasteEditKind.Empty.append('markdown', 'vibeReview', 'image');
 const HTML_KIND = vscode.DocumentDropOrPasteEditKind.Empty.append('markdown', 'vibeReview', 'html');
@@ -16,10 +16,6 @@ const VSCODE_EDITOR_MIME = 'vscode-editor-data';
  */
 function isOurCommentBox(doc: vscode.TextDocument): boolean {
   return doc.uri.scheme === 'comment' && (doc.uri.authority === 'vibe-review' || doc.uri.authority === '');
-}
-
-function imageMarkdown(rel: string, name: string): string {
-  return `![${name.replace(/[[\]]/g, '')}](${rel})`;
 }
 
 /**
@@ -65,12 +61,6 @@ async function imagesFromUris(root: string, data: vscode.DataTransfer): Promise<
     }
   }
   return out;
-}
-
-let turndown: TurndownService | undefined;
-function htmlToMarkdown(html: string): string {
-  turndown ??= new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced', bulletListMarker: '-' });
-  return turndown.turndown(html).trim();
 }
 
 export function registerPasteSupport(root: string, ensureStore: () => void): vscode.Disposable {

@@ -7,6 +7,8 @@ const builds = [
   { ...common, entryPoints: ['src/hook.ts'], outfile: 'dist/hook.js' },
   { ...common, entryPoints: ['src/mcp.ts'], outfile: 'dist/mcp.js' },
   { ...common, entryPoints: ['src/uninstall.ts'], outfile: 'dist/uninstall.js' },
+  // Used by the Visual Studio extension (visualstudio/), not by VS Code.
+  { ...common, entryPoints: ['src/vs-bridge.ts'], outfile: 'dist/vs-bridge.js' },
 ];
 
 if (watch) {

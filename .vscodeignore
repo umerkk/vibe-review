@@ -12,4 +12,6 @@ esbuild.mjs
 .DS_Store
 **/.DS_Store
 docs/**
+dist/vs-bridge.js
+visualstudio/**
 .github/**
