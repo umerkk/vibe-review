@@ -77,6 +77,7 @@ namespace VibeReview.Bridge
             };
 
             using var process = new Process { StartInfo = info };
+            var stopwatch = Stopwatch.StartNew();
             try
             {
                 process.Start();
@@ -90,26 +91,52 @@ namespace VibeReview.Bridge
             var stderr = process.StandardError.ReadToEndAsync();
             try
             {
-                // .NET Framework has no StandardInputEncoding: write UTF-8 bytes ourselves (no BOM).
-                var payload = Utf8.GetBytes(JsonConvert.SerializeObject(args ?? new object()));
-                var stdin = process.StandardInput.BaseStream;
-                stdin.Write(payload, 0, payload.Length);
-                stdin.Flush();
-                process.StandardInput.Close();
-            }
-            catch (IOException)
-            {
-                // The process exited early; its output explains why.
-            }
-
-            using (cancellationToken.Register(() => TryKill(process)))
-            {
-                if (!process.WaitForExit(timeoutMs))
+                using (cancellationToken.Register(() => TryKill(process)))
                 {
-                    TryKill(process);
-                    throw new BridgeException($"Vibe Review timed out running \"{command}\".");
+                    cancellationToken.ThrowIfCancellationRequested();
+                    try
+                    {
+                        // .NET Framework has no StandardInputEncoding: write UTF-8 bytes ourselves (no BOM).
+                        var payload = Utf8.GetBytes(JsonConvert.SerializeObject(args ?? new object()));
+                        var write = process.StandardInput.BaseStream.WriteAsync(payload, 0, payload.Length, cancellationToken);
+                        var remaining = timeoutMs - (int)stopwatch.ElapsedMilliseconds;
+#pragma warning disable VSTHRD002 // Pipe I/O and process exit intentionally share this synchronous timeout boundary.
+                        if (remaining <= 0 || Task.WhenAny(write, Task.Delay(remaining)).GetAwaiter().GetResult() != write)
+                        {
+                            KillAndWait(process);
+                            throw new BridgeException($"Vibe Review timed out running \"{command}\".");
+                        }
+                        write.GetAwaiter().GetResult();
+#pragma warning restore VSTHRD002
+                        process.StandardInput.Close();
+                    }
+                    catch (IOException)
+                    {
+                        // The process exited early; its output explains why.
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        // The process exited early; its output explains why.
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        // The process exited early; its output explains why.
+                    }
+
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var exitTimeout = timeoutMs - (int)stopwatch.ElapsedMilliseconds;
+                    if (exitTimeout <= 0 || !process.WaitForExit(exitTimeout))
+                    {
+                        KillAndWait(process);
+                        throw new BridgeException($"Vibe Review timed out running \"{command}\".");
+                    }
+                    process.WaitForExit(); // flush async readers
                 }
-                process.WaitForExit(); // flush async readers
+            }
+            catch (OperationCanceledException)
+            {
+                KillAndWait(process);
+                throw;
             }
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -157,6 +184,18 @@ namespace VibeReview.Bridge
             {
             }
             catch (System.ComponentModel.Win32Exception)
+            {
+            }
+        }
+
+        private static void KillAndWait(Process process)
+        {
+            TryKill(process);
+            try
+            {
+                process.WaitForExit(5000);
+            }
+            catch (InvalidOperationException)
             {
             }
         }

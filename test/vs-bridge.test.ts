@@ -65,6 +65,22 @@ test('vs-bridge: root resolves the repository from a subfolder, null outside one
   assert.equal(call('root', { path: base }).result, null);
 });
 
+test('vs-bridge: a symlinked subfolder does not reconstruct a root outside the repository', (t) => {
+  const { base, root, call } = fixture(t);
+  const sub = path.join(root, 'sub');
+  const alias = path.join(base, 'alias');
+  fs.mkdirSync(sub);
+  fs.symlinkSync(sub, alias, process.platform === 'win32' ? 'junction' : 'dir');
+  assert.equal(call('root', { path: alias }).result, root);
+});
+
+test('vs-bridge: Windows path casing stores the Git-reported path', (t) => {
+  if (process.platform !== 'win32') return t.skip('Windows-only case-insensitive path behavior');
+  const { root, ok, store } = fixture(t);
+  const id = ok('create-thread', { file: path.join(root, 'A.TS'), startLine: 1, endLine: 1, body: 'case-insensitive path' });
+  assert.equal(store.getThread(id)!.file, 'a.ts');
+});
+
 test('vs-bridge: comments only on changed lines (any line of new files), like a PR', (t) => {
   const { root, call, ok, store } = fixture(t);
   const create = (file: string, startLine: number, endLine = startLine) =>
@@ -222,7 +238,7 @@ test('vs-bridge: setup, agents and uninstall manage the same agent config as VS 
   const bin = path.join(home, '.vibe-review', 'bin');
   assert.ok(fs.existsSync(path.join(bin, 'hook.js')) && fs.existsSync(path.join(bin, 'mcp.js')));
   const settings = JSON.parse(fs.readFileSync(path.join(home, '.claude', 'settings.json'), 'utf8'));
-  assert.match(settings.hooks.Stop[0].hooks[0].command, /hook\.js stop claude --timeout 3600$/);
+  assert.match(settings.hooks.Stop[0].hooks[0].command, /hook\.js"? stop claude --timeout 3600$/);
   assert.equal(call('sync-runtime').result, true);
 
   const agents = ok('agents');

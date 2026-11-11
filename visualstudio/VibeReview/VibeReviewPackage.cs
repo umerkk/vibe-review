@@ -30,6 +30,7 @@ namespace VibeReview
 
             var options = await General.GetLiveInstanceAsync();
             NodeBridge.ConfiguredNodePath = options.NodePath;
+            ReviewSession.Instance.SetWaitTimeout(options.EffectiveWaitTimeoutMinutes);
             General.Saved += OnOptionsSaved;
 
             await ReviewSession.Instance.StartAsync(this);
@@ -50,15 +51,7 @@ namespace VibeReview
         private void OnOptionsSaved(General options)
         {
             NodeBridge.ConfiguredNodePath = options.NodePath;
-            var session = ReviewSession.Instance;
-            if (session.State?.StoreExists == true)
-            {
-                JoinableTaskFactory.RunAsync(() => session.RunAsync("set-timeout", new { waitTimeoutMinutes = options.EffectiveWaitTimeoutMinutes })).FireAndForget();
-            }
-            else
-            {
-                session.RequestRefresh();
-            }
+            ReviewSession.Instance.SetWaitTimeout(options.EffectiveWaitTimeoutMinutes);
         }
 
         protected override void Dispose(bool disposing)

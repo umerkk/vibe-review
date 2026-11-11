@@ -8,6 +8,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
+using Community.VisualStudio.Toolkit;
 using Microsoft.VisualStudio.Shell;
 using Newtonsoft.Json.Linq;
 using VibeReview.Bridge;

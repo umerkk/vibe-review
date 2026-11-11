@@ -32,13 +32,21 @@ namespace VibeReview
         private readonly int _pid = Process.GetCurrentProcess().Id;
         private readonly SemaphoreSlim _wake = new SemaphoreSlim(0);
         private readonly SemaphoreSlim _tickLock = new SemaphoreSlim(1, 1);
+        private readonly object _pollLock = new object();
         private CancellationTokenSource? _cts;
+        private CancellationTokenSource _folderCts = new CancellationTokenSource();
         private AsyncPackage? _package;
         private string? _folder;
         private string? _resolvedFolder;
         private FileSystemWatcher? _watcher;
         private DateTime _lastBeat = DateTime.MinValue;
         private string? _lastJson;
+        private int _folderGeneration;
+        private Task _releaseTask = Task.CompletedTask;
+        private int? _waitTimeoutMinutes;
+        private string? _timeoutRoot;
+        private int? _appliedTimeoutMinutes;
+        private bool _disposed;
         private bool _wasWaiting;
         private InfoBar? _infoBar;
 
@@ -80,6 +88,17 @@ namespace VibeReview
 
         /// <summary>Refreshes now and waits for it.</summary>
         public Task RefreshAsync() => TickAsync(_cts?.Token ?? CancellationToken.None);
+
+        public void SetWaitTimeout(int minutes)
+        {
+            lock (_pollLock)
+            {
+                _waitTimeoutMinutes = Math.Max(1, Math.Min(55, minutes));
+                _timeoutRoot = null;
+                _appliedTimeoutMinutes = null;
+            }
+            RequestRefresh();
+        }
 
         /// <summary>Calls the bridge for the current repository (adds "root"). Shows errors and returns null on failure.</summary>
         public async Task<JToken?> RunAsync(string command, object? args = null, bool refresh = true)
@@ -139,15 +158,47 @@ namespace VibeReview
 
         private void FolderChanged()
         {
+            CancellationTokenSource oldPoll;
+            int generation;
+            lock (_pollLock)
+            {
+                if (_disposed) return;
+                generation = ++_folderGeneration;
+                oldPoll = _folderCts;
+                _folderCts = new CancellationTokenSource();
+
+                var previousRoot = Root;
+                Root = null;
+                State = null;
+                Error = null;
+                _lastJson = null;
+                _folder = null;
+                _resolvedFolder = null;
+                _lastBeat = DateTime.MinValue;
+                _wasWaiting = false;
+                _timeoutRoot = null;
+                _appliedTimeoutMinutes = null;
+                _watcher?.Dispose();
+                _watcher = null;
+                var release = previousRoot == null ? Task.CompletedTask : ReleaseAgentsAsync(previousRoot);
+                _releaseTask = Task.WhenAll(_releaseTask, release);
+            }
+            oldPoll.Cancel();
+            oldPoll.Dispose();
             _ = ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
             {
-                await UpdateFolderAsync();
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                if (generation != Volatile.Read(ref _folderGeneration)) return;
+                Changed?.Invoke(this, EventArgs.Empty);
+                CloseInfoBar();
+                await UpdateFolderAsync(generation);
                 RequestRefresh();
             });
         }
 
-        private async Task UpdateFolderAsync()
+        private async Task UpdateFolderAsync(int? generation = null)
         {
+            var expectedGeneration = generation ?? Volatile.Read(ref _folderGeneration);
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
             string? folder = null;
             if (await VS.Services.GetSolutionAsync() is IVsSolution solution)
@@ -159,7 +210,11 @@ namespace VibeReview
                     else if (solution.GetProperty((int)__VSPROPID.VSPROPID_SolutionDirectory, out var sd) == 0 && sd is string s && s.Length > 0) folder = s;
                 }
             }
-            _folder = folder;
+            lock (_pollLock)
+            {
+                if (expectedGeneration != _folderGeneration) return;
+                _folder = folder;
+            }
         }
 
         private async Task LoopAsync(CancellationToken ct)
@@ -172,7 +227,7 @@ namespace VibeReview
                 }
                 catch (OperationCanceledException)
                 {
-                    return;
+                    if (ct.IsCancellationRequested) return;
                 }
                 catch (Exception ex)
                 {
@@ -199,20 +254,39 @@ namespace VibeReview
 
         private async Task TickAsync(CancellationToken ct)
         {
-            await _tickLock.WaitAsync(ct);
-            try
+            CancellationTokenSource poll;
+            int generation;
+            Task releaseTask;
+            lock (_pollLock)
             {
-                await TickCoreAsync(ct);
+                generation = _folderGeneration;
+                poll = CancellationTokenSource.CreateLinkedTokenSource(ct, _folderCts.Token);
+                releaseTask = _releaseTask;
             }
-            finally
+            using (poll)
             {
-                _tickLock.Release();
+                await _tickLock.WaitAsync(poll.Token);
+                try
+                {
+                    await releaseTask;
+                    poll.Token.ThrowIfCancellationRequested();
+                    await TickCoreAsync(poll.Token, generation);
+                }
+                finally
+                {
+                    _tickLock.Release();
+                }
             }
         }
 
-        private async Task TickCoreAsync(CancellationToken ct)
+        private async Task TickCoreAsync(CancellationToken ct, int generation)
         {
-            var folder = _folder;
+            string? folder;
+            lock (_pollLock)
+            {
+                if (generation != _folderGeneration) return;
+                folder = _folder;
+            }
             if (folder != _resolvedFolder)
             {
                 string? root = null;
@@ -228,11 +302,15 @@ namespace VibeReview
                         error = ex.Message;
                     }
                 }
-                if (error == null) _resolvedFolder = folder;
-                SwitchRoot(root);
+                lock (_pollLock)
+                {
+                    if (generation != _folderGeneration) return;
+                    if (error == null && (root != null || folder == null)) _resolvedFolder = folder;
+                    SwitchRoot(root);
+                }
                 if (error != null)
                 {
-                    await PublishAsync(null, null, error);
+                    await PublishAsync(null, null, error, generation);
                     return;
                 }
             }
@@ -240,7 +318,7 @@ namespace VibeReview
             var current = Root;
             if (current == null)
             {
-                await PublishAsync(null, null, null);
+                await PublishAsync(null, null, null, generation);
                 return;
             }
 
@@ -253,26 +331,64 @@ namespace VibeReview
                     ? await NodeBridge.CallAsync<JToken>("state", new { root = current, pid = _pid }, ct)
                     : await NodeBridge.CallAsync<JToken>("state", new { root = current }, ct);
                 state = token.ToObject<ReviewState>();
-                if (beat && state?.StoreExists == true) _lastBeat = DateTime.UtcNow;
+                if (beat && state?.StoreExists == true)
+                {
+                    lock (_pollLock)
+                    {
+                        if (generation != _folderGeneration) return;
+                        _lastBeat = DateTime.UtcNow;
+                    }
+                }
             }
             catch (BridgeException ex)
             {
-                await PublishAsync(null, null, ex.Message);
+                await PublishAsync(null, null, ex.Message, generation);
                 return;
             }
-            if (Root != current) return; // the solution changed meanwhile
-            await PublishAsync(state, token.ToString(Formatting.None), null);
+            if (generation != Volatile.Read(ref _folderGeneration) || Root != current) return;
+            int? timeout;
+            bool applyTimeout;
+            lock (_pollLock)
+            {
+                timeout = _waitTimeoutMinutes;
+                applyTimeout = state?.StoreExists == true && timeout.HasValue &&
+                    (!string.Equals(_timeoutRoot, current, StringComparison.OrdinalIgnoreCase) || _appliedTimeoutMinutes != timeout);
+            }
+            if (applyTimeout)
+            {
+                try
+                {
+                    await NodeBridge.CallAsync<JToken>("set-timeout", new { root = current, waitTimeoutMinutes = timeout }, ct);
+                }
+                catch (BridgeException ex)
+                {
+                    if (generation == Volatile.Read(ref _folderGeneration))
+                        await PublishAsync(null, null, ex.Message, generation);
+                    return;
+                }
+                lock (_pollLock)
+                {
+                    if (generation != _folderGeneration) return;
+                    _timeoutRoot = current;
+                    _appliedTimeoutMinutes = timeout;
+                }
+            }
+            await PublishAsync(state, token.ToString(Formatting.None), null, generation);
         }
 
-        private async Task PublishAsync(ReviewState? state, string? json, string? error)
+        private async Task PublishAsync(ReviewState? state, string? json, string? error, int generation)
         {
             var key = (json ?? "") + "|" + (Root ?? "") + "|" + (error ?? "");
-            if (key == _lastJson) return;
-            _lastJson = key;
-            State = state;
-            Error = error;
+            lock (_pollLock)
+            {
+                if (generation != _folderGeneration || key == _lastJson) return;
+                _lastJson = key;
+                State = state;
+                Error = error;
+            }
 
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            if (generation != Volatile.Read(ref _folderGeneration)) return;
             Changed?.Invoke(this, EventArgs.Empty);
 
             var waiting = state?.Agent.Waiting == true;
@@ -284,11 +400,12 @@ namespace VibeReview
         private void SwitchRoot(string? root)
         {
             if (string.Equals(root, Root, StringComparison.OrdinalIgnoreCase)) return;
-            ReleaseAgents();
             _watcher?.Dispose();
             _watcher = null;
             Root = root;
             _lastBeat = DateTime.MinValue;
+            _timeoutRoot = null;
+            _appliedTimeoutMinutes = null;
             if (root == null) return;
             try
             {
@@ -365,23 +482,43 @@ namespace VibeReview
         private void ReleaseAgents()
         {
             var root = Root;
-            if (root == null || _lastBeat == DateTime.MinValue) return;
+            if (root == null) return;
             try
             {
                 NodeBridge.Call<JToken>("editor-closed", new { root, pid = _pid }, timeoutMs: 5000);
             }
-            catch (Exception ex) when (ex is BridgeException || ex is IOException)
+            catch (Exception)
             {
                 // Best effort: a stale heartbeat expires on its own.
             }
             _lastBeat = DateTime.MinValue;
         }
 
+        private async Task ReleaseAgentsAsync(string root)
+        {
+            try
+            {
+                await NodeBridge.CallAsync<JToken>("editor-closed", new { root, pid = _pid }, timeoutMs: 5000);
+            }
+            catch (Exception)
+            {
+                // Best effort: a stale heartbeat expires on its own.
+            }
+        }
+
         public void Dispose()
         {
-            if (_cts == null) return;
-            _cts.Cancel();
-            _cts = null;
+            CancellationTokenSource folderCts;
+            lock (_pollLock)
+            {
+                if (_disposed) return;
+                _disposed = true;
+                _cts?.Cancel();
+                _cts = null;
+                folderCts = _folderCts;
+            }
+            folderCts.Cancel();
+            folderCts.Dispose();
             _watcher?.Dispose();
             _watcher = null;
             ReleaseAgents();

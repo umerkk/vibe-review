@@ -46,11 +46,15 @@ namespace VibeReview.ToolWindow
         private readonly TextBlock _empty = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(8), Visibility = Visibility.Collapsed };
         private readonly StackPanel _detail = new StackPanel { Margin = new Thickness(8) };
         private readonly HashSet<string> _collapsed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _editingComments = new HashSet<string>();
+        private readonly Dictionary<string, string> _replyDrafts = new Dictionary<string, string>();
+        private readonly Dictionary<string, string> _editDrafts = new Dictionary<string, string>();
         private string? _selectedThreadId;
         private string? _renderedThreadKey;
         private CommentTextBox? _reply;
         private string? _replyThreadId;
-        private string? _editingCommentId;
+        private string? _replyRoot;
+        private readonly Dictionary<string, CommentTextBox> _editingBoxes = new Dictionary<string, CommentTextBox>();
 
         public ReviewControl(ReviewSession session)
         {
@@ -316,7 +320,6 @@ namespace VibeReview.ToolWindow
             {
                 if (_selectedThreadId == thread.Id) return;
                 _selectedThreadId = thread.Id;
-                _editingCommentId = null;
                 RenderDetail(_session.State);
             }
         }
@@ -358,15 +361,17 @@ namespace VibeReview.ToolWindow
         private void RenderDetail(ReviewState? state)
         {
             var thread = SelectedThread;
+            CaptureDrafts();
             // Re-rendering would wipe what the user is typing: only do it when the thread changed.
-            var key = thread == null ? "" : Newtonsoft.Json.JsonConvert.SerializeObject(thread) + "|" + _editingCommentId;
+            var root = _session.Root ?? "";
+            var key = root + "|" + (thread == null ? "" : Newtonsoft.Json.JsonConvert.SerializeObject(thread));
             if (key == _renderedThreadKey && _detail.Children.Count > 0) return;
             _renderedThreadKey = key;
-            // Keep a half-typed reply when the same thread re-renders (e.g. the agent replied meanwhile).
-            var draftReply = thread != null && _replyThreadId == thread.Id ? _reply?.Text : null;
             _detail.Children.Clear();
             _reply = null;
             _replyThreadId = null;
+            _replyRoot = null;
+            _editingBoxes.Clear();
 
             if (state == null) return;
             if (thread == null)
@@ -398,8 +403,11 @@ namespace VibeReview.ToolWindow
             foreach (var comment in thread.Comments) _detail.Children.Add(CommentView(thread, comment));
 
             var actions = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
+            var replyKey = ReplyDraftKey(root, thread.Id);
+            _replyDrafts.TryGetValue(replyKey, out var draftReply);
             _reply = new CommentTextBox { Text = draftReply ?? "", Margin = new Thickness(0, 6, 0, 4) };
             _replyThreadId = thread.Id;
+            _replyRoot = root;
             _reply.SubmitRequested += (_, __) => SendReply(thread);
             _detail.Children.Add(new TextBlock { Text = "Reply", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 8, 0, 0) });
             _detail.Children.Add(_reply);
@@ -434,18 +442,37 @@ namespace VibeReview.ToolWindow
             var box = _reply;
             if (box == null || box.Text.Trim().Length == 0) return;
             var body = box.Text.Trim();
+            var root = _replyRoot ?? _session.Root ?? "";
+            var key = ReplyDraftKey(root, thread.Id);
             Run(async () =>
             {
+                if (_session.Root != root) return;
                 var result = await _session.RunAsync("reply", new { threadId = thread.Id, body });
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                if (result != null && _reply != null)
+                if (result == null) return;
+                CaptureDrafts();
+                var currentText = _replyRoot == root && _replyThreadId == thread.Id && _reply != null
+                    ? _reply.Text
+                    : _replyDrafts.TryGetValue(key, out var savedDraft) ? savedDraft : null;
+                if (currentText?.Trim() == body)
                 {
-                    _reply.Text = "";
-                    _renderedThreadKey = null;
-                    RenderDetail(_session.State);
+                    if (_replyRoot == root && _replyThreadId == thread.Id && _reply != null) _reply.Text = "";
+                    _replyDrafts.Remove(key);
                 }
             });
         }
+
+        private void CaptureDrafts()
+        {
+            if (_reply != null && _replyThreadId != null && _replyRoot != null)
+                _replyDrafts[ReplyDraftKey(_replyRoot, _replyThreadId)] = _reply.Text;
+            foreach (var editor in _editingBoxes)
+                _editDrafts[editor.Key] = editor.Value.Text;
+        }
+
+        private static string ReplyDraftKey(string root, string threadId) => root + "\0" + threadId;
+
+        private static string EditDraftKey(string root, string threadId, string commentId) => root + "\0" + threadId + "\0" + commentId;
 
         private FrameworkElement CommentView(ThreadInfo thread, CommentInfo comment)
         {
@@ -463,22 +490,37 @@ namespace VibeReview.ToolWindow
             who.Opacity = 0.85;
             stack.Children.Add(who);
 
-            if (_editingCommentId == comment.Id)
+            var editRoot = _session.Root ?? "";
+            var editKey = EditDraftKey(editRoot, thread.Id, comment.Id);
+            if (_editingComments.Contains(editKey))
             {
-                var editor = new CommentTextBox { Text = comment.Body };
+                var initialText = _editDrafts.TryGetValue(editKey, out var draft) ? draft : comment.Body;
+                var editor = new CommentTextBox { Text = initialText };
+                _editingBoxes[editKey] = editor;
                 stack.Children.Add(editor);
                 var buttons = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
                 void Save()
                 {
                     var body = editor.Text.Trim();
                     if (body.Length == 0) return;
+                    var root = editRoot;
                     Run(async () =>
                     {
+                        if (_session.Root != root) return;
                         if (await _session.RunAsync("edit-comment", new { threadId = thread.Id, commentId = comment.Id, body }) == null) return;
                         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                        _editingCommentId = null;
-                        _renderedThreadKey = null;
-                        RenderDetail(_session.State);
+                        CaptureDrafts();
+                        var unchanged = _editDrafts.TryGetValue(editKey, out var currentDraft) && currentDraft.Trim() == body;
+                        if (unchanged)
+                        {
+                            _editDrafts.Remove(editKey);
+                            _editingComments.Remove(editKey);
+                        }
+                        if (_session.Root == root && _selectedThreadId == thread.Id)
+                        {
+                            _renderedThreadKey = null;
+                            RenderDetail(_session.State);
+                        }
                     });
                 }
                 editor.SubmitRequested += (_, __) => Save();
@@ -489,9 +531,13 @@ namespace VibeReview.ToolWindow
                 });
                 AddButton(buttons, "Cancel", "", () =>
                 {
-                    _editingCommentId = null;
-                    _renderedThreadKey = null;
-                    RenderDetail(_session.State);
+                    _editDrafts.Remove(editKey);
+                    _editingComments.Remove(editKey);
+                    if (_session.Root == editRoot && _selectedThreadId == thread.Id)
+                    {
+                        _renderedThreadKey = null;
+                        RenderDetail(_session.State);
+                    }
                     return Task.CompletedTask;
                 });
                 stack.Children.Add(buttons);
@@ -515,7 +561,10 @@ namespace VibeReview.ToolWindow
                 var buttons = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
                 AddButton(buttons, "Edit", "Edit this pending comment", () =>
                 {
-                    _editingCommentId = comment.Id;
+                    var key = EditDraftKey(_session.Root ?? "", thread.Id, comment.Id);
+                    _editingComments.Add(key);
+                    if (!_editDrafts.ContainsKey(key)) _editDrafts[key] = comment.Body;
+                    _renderedThreadKey = null;
                     RenderDetail(_session.State);
                     return Task.CompletedTask;
                 });
@@ -552,7 +601,7 @@ namespace VibeReview.ToolWindow
                 };
                 return view;
             }
-            catch (Exception ex) when (ex is IOException || ex is NotSupportedException || ex is UriFormatException || ex is UnauthorizedAccessException)
+            catch (Exception ex) when (ex is IOException || ex is FileFormatException || ex is NotSupportedException || ex is UriFormatException || ex is UnauthorizedAccessException)
             {
                 return new TextBlock { Text = $"[image: {attachment.Alt}]", Opacity = 0.7 };
             }

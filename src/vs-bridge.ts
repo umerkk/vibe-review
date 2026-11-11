@@ -68,11 +68,19 @@ function relPath(root: string, file: string): string {
 }
 
 /** Lines that may be commented on, as in the VS Code extension: changed lines only, any line of new files. */
+function sameRepoPath(a: string, b: string): boolean {
+  return process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
+}
+
+function changedFile(root: string, rel: string): ChangedFile | undefined {
+  return getChangedFiles(root).find((file) => sameRepoPath(file.path, rel));
+}
+
 function commentableRanges(root: string, rel: string): Array<[number, number]> | 'all' | undefined {
   if (rel.startsWith('.vibe-review/')) return undefined;
-  const file = getChangedFiles(root).find((f) => f.path === rel);
+  const file = changedFile(root, rel);
   if (!file || file.kind === 'deleted') return undefined;
-  return file.kind === 'untracked' || file.kind === 'added' ? 'all' : getChangedLineRanges(root, rel);
+  return file.kind === 'untracked' || file.kind === 'added' ? 'all' : getChangedLineRanges(root, file.path);
 }
 
 function readLines(root: string, rel: string): string[] | undefined {
@@ -104,8 +112,16 @@ const commands: Record<string, (p: Params) => unknown> = {
     const gitRoot = findRepoRoot(folder);
     if (!gitRoot) return null;
     try {
-      const up = path.relative(fs.realpathSync(folder), fs.realpathSync(gitRoot));
-      if (!path.isAbsolute(up)) return path.resolve(folder, up);
+      const realGitRoot = fs.realpathSync(gitRoot);
+      const up = path.relative(fs.realpathSync(folder), realGitRoot);
+      if (!path.isAbsolute(up)) {
+        const logicalRoot = path.resolve(folder, up);
+        const realLogicalRoot = fs.realpathSync(logicalRoot);
+        const sameRoot = process.platform === 'win32'
+          ? realLogicalRoot.toLowerCase() === realGitRoot.toLowerCase()
+          : realLogicalRoot === realGitRoot;
+        if (sameRoot) return logicalRoot;
+      }
     } catch {
       // fall back to git's path
     }
@@ -168,7 +184,9 @@ const commands: Record<string, (p: Params) => unknown> = {
   /** Line ranges (0-based, inclusive) that can be commented on, or "all" for new files. */
   ranges: (p) => {
     const store = storeOf(p);
-    return commentableRanges(store.root, relPath(store.root, str(p, 'file'))) ?? [];
+    const rel = relPath(store.root, str(p, 'file'));
+    const file = changedFile(store.root, rel);
+    return file ? commentableRanges(store.root, file.path) ?? [] : [];
   },
 
   heartbeat: (p) => {
@@ -189,7 +207,9 @@ const commands: Record<string, (p: Params) => unknown> = {
 
   'create-thread': (p) => {
     const store = storeOf(p);
-    const rel = relPath(store.root, str(p, 'file'));
+    const requestedPath = relPath(store.root, str(p, 'file'));
+    const changed = changedFile(store.root, requestedPath);
+    const rel = changed?.path ?? requestedPath;
     const startLine = int(p, 'startLine');
     const endLine = int(p, 'endLine');
     const body = str(p, 'body');
@@ -317,7 +337,7 @@ const commands: Record<string, (p: Params) => unknown> = {
     const ids = agentIds(p);
     const install = p.install !== false;
     if (install) installRuntime(__dirname, binDir());
-    const ctx = { home: home(), nodePath: resolveNodePath(), binDir: binDir() };
+    const ctx = { home: home(), nodePath: process.platform === 'win32' ? process.execPath : resolveNodePath(), binDir: binDir() };
     const notes = ids.flatMap((id) => configureAgent(id, ctx, install).notes);
     return { agents: ids.map((id) => AGENTS[id]), notes };
   },
