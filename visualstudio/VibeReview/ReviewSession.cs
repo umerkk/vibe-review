@@ -2,10 +2,13 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Community.VisualStudio.Toolkit;
 using Microsoft.VisualStudio.Imaging;
+using Microsoft.Win32.SafeHandles;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Newtonsoft.Json;
@@ -145,7 +148,8 @@ namespace VibeReview
             string full;
             try
             {
-                full = Path.GetFullPath(fullPath);
+                full = CanonicalPath(fullPath);
+                root = CanonicalPath(root);
             }
             catch (Exception ex) when (ex is ArgumentException || ex is NotSupportedException || ex is PathTooLongException)
             {
@@ -156,10 +160,39 @@ namespace VibeReview
             return full.Substring(prefix.Length).Replace(Path.DirectorySeparatorChar, '/');
         }
 
+        private static string CanonicalPath(string path)
+        {
+            path = Path.GetFullPath(path);
+            if (Environment.OSVersion.Platform != PlatformID.Win32NT) return path;
+
+            using (var handle = CreateFile(path, 0, 7, IntPtr.Zero, 3, 0x02000000, IntPtr.Zero))
+            {
+                if (handle.IsInvalid) return path;
+                var buffer = new StringBuilder(32768);
+                var length = GetFinalPathNameByHandle(handle, buffer, (uint)buffer.Capacity, 0);
+                if (length == 0 || length >= buffer.Capacity) return path;
+                var canonical = buffer.ToString();
+                if (canonical.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase))
+                    return @"\\" + canonical.Substring(8);
+                return canonical.StartsWith(@"\\?\", StringComparison.OrdinalIgnoreCase)
+                    ? canonical.Substring(4)
+                    : canonical;
+            }
+        }
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern SafeFileHandle CreateFile(string fileName, uint desiredAccess, uint shareMode, IntPtr securityAttributes, uint creationDisposition, uint flagsAndAttributes, IntPtr templateFile);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern uint GetFinalPathNameByHandle(SafeFileHandle file, StringBuilder filePath, uint filePathLength, uint flags);
+
         private void FolderChanged()
         {
             CancellationTokenSource oldPoll;
             int generation;
+            string? previousRoot;
+            Task precedingRelease;
+            TaskCompletionSource<bool>? releaseGate = null;
             lock (_pollLock)
             {
                 if (_disposed) return;
@@ -167,7 +200,7 @@ namespace VibeReview
                 oldPoll = _folderCts;
                 _folderCts = new CancellationTokenSource();
 
-                var previousRoot = Root;
+                previousRoot = Root;
                 Root = null;
                 State = null;
                 Error = null;
@@ -180,11 +213,17 @@ namespace VibeReview
                 _appliedTimeoutMinutes = null;
                 _watcher?.Dispose();
                 _watcher = null;
-                var release = previousRoot == null ? Task.CompletedTask : ReleaseAgentsAsync(previousRoot);
-                _releaseTask = Task.WhenAll(_releaseTask, release);
+                precedingRelease = _releaseTask;
+                if (previousRoot != null)
+                {
+                    releaseGate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                    _releaseTask = releaseGate.Task;
+                }
             }
             oldPoll.Cancel();
             oldPoll.Dispose();
+            if (previousRoot != null && releaseGate != null)
+                _ = ReleaseAgentsAfterPollAsync(previousRoot, precedingRelease, releaseGate);
             _ = ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
             {
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
@@ -265,10 +304,11 @@ namespace VibeReview
             }
             using (poll)
             {
+                await releaseTask;
+                poll.Token.ThrowIfCancellationRequested();
                 await _tickLock.WaitAsync(poll.Token);
                 try
                 {
-                    await releaseTask;
                     poll.Token.ThrowIfCancellationRequested();
                     await TickCoreAsync(poll.Token, generation);
                 }
@@ -479,36 +519,43 @@ namespace VibeReview
         }
 
         /// <summary>Tells agents this editor is gone so they stop waiting for a review.</summary>
-        private void ReleaseAgents()
+        private async Task ReleaseAgentsAfterPollAsync(string root, Task precedingRelease, TaskCompletionSource<bool> releaseGate)
         {
-            var root = Root;
-            if (root == null) return;
             try
             {
-                NodeBridge.Call<JToken>("editor-closed", new { root, pid = _pid }, timeoutMs: 5000);
+#pragma warning disable VSTHRD003 // This chained cleanup task is awaited without capturing the UI context.
+                await precedingRelease.ConfigureAwait(false);
+#pragma warning restore VSTHRD003
+                await _tickLock.WaitAsync().ConfigureAwait(false);
+                try
+                {
+                    await NodeBridge.CallAsync<JToken>("editor-closed", new { root, pid = _pid }, timeoutMs: 5000).ConfigureAwait(false);
+                }
+                catch (Exception)
+                {
+                    // Best effort: a stale heartbeat expires on its own.
+                }
+                finally
+                {
+                    _tickLock.Release();
+                }
             }
             catch (Exception)
             {
                 // Best effort: a stale heartbeat expires on its own.
             }
-            _lastBeat = DateTime.MinValue;
-        }
-
-        private async Task ReleaseAgentsAsync(string root)
-        {
-            try
+            finally
             {
-                await NodeBridge.CallAsync<JToken>("editor-closed", new { root, pid = _pid }, timeoutMs: 5000);
-            }
-            catch (Exception)
-            {
-                // Best effort: a stale heartbeat expires on its own.
+                releaseGate.TrySetResult(true);
             }
         }
 
         public void Dispose()
         {
             CancellationTokenSource folderCts;
+            string? root;
+            Task precedingRelease;
+            TaskCompletionSource<bool>? releaseGate = null;
             lock (_pollLock)
             {
                 if (_disposed) return;
@@ -516,12 +563,24 @@ namespace VibeReview
                 _cts?.Cancel();
                 _cts = null;
                 folderCts = _folderCts;
+                root = Root;
+                Root = null;
+                State = null;
+                Error = null;
+                _folderGeneration++;
+                precedingRelease = _releaseTask;
+                if (root != null)
+                {
+                    releaseGate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                    _releaseTask = releaseGate.Task;
+                }
             }
             folderCts.Cancel();
             folderCts.Dispose();
             _watcher?.Dispose();
             _watcher = null;
-            ReleaseAgents();
+            if (root != null && releaseGate != null)
+                _ = ReleaseAgentsAfterPollAsync(root, precedingRelease, releaseGate);
         }
 
         /// <summary>Threads on a file, by absolute path.</summary>

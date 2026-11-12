@@ -178,7 +178,7 @@ namespace VibeReview
             var lines = startLine == endLine ? $"line {startLine + 1}" : $"lines {startLine + 1}–{endLine + 1}";
             var body = VibeDialog.AskComment($"Comment on {Path.GetFileName(rel)}, {lines}", "Your comment for the agent (saved as a draft until you submit the review):", "Add Comment");
             if (body == null) return;
-            var id = await Session.RunAsync("create-thread", new { file = document.FilePath, startLine, endLine, anchor, body });
+            var id = await Session.RunAsync("create-thread", new { file = rel, startLine, endLine, anchor, body });
             if (id?.Type == JTokenType.String) await ToolWindow.ReviewToolWindow.ShowThreadAsync((string)id!);
         }
 

@@ -30,7 +30,6 @@ namespace VibeReview
 
             var options = await General.GetLiveInstanceAsync();
             NodeBridge.ConfiguredNodePath = options.NodePath;
-            ReviewSession.Instance.SetWaitTimeout(options.EffectiveWaitTimeoutMinutes);
             General.Saved += OnOptionsSaved;
 
             await ReviewSession.Instance.StartAsync(this);

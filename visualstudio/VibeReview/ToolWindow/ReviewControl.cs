@@ -467,7 +467,8 @@ namespace VibeReview.ToolWindow
             if (_reply != null && _replyThreadId != null && _replyRoot != null)
                 _replyDrafts[ReplyDraftKey(_replyRoot, _replyThreadId)] = _reply.Text;
             foreach (var editor in _editingBoxes)
-                _editDrafts[editor.Key] = editor.Value.Text;
+                if (_editingComments.Contains(editor.Key))
+                    _editDrafts[editor.Key] = editor.Value.Text;
         }
 
         private static string ReplyDraftKey(string root, string threadId) => root + "\0" + threadId;
