@@ -16,7 +16,7 @@ import { Review, threadState } from './shared/types';
 const VERSION = '0.1.0';
 const WAIT_LEASE_GRACE_MS = 20_000;
 const NO_EDITOR =
-  'VS Code is not open on this repository with Vibe Review running, so no review can be submitted. Stop waiting; call wait_for_review again once the user opens VS Code.';
+  'No editor (VS Code or Visual Studio) is open on this repository with Vibe Review running, so no review can be submitted. Stop waiting; call wait_for_review again once the user opens the editor.';
 
 function resolveStore(repoPath?: string): ReviewStore {
   const start = repoPath || process.env.VIBE_REVIEW_ROOT || process.cwd();
@@ -60,7 +60,7 @@ server.registerTool(
   {
     title: 'Get local code review',
     description:
-      'Returns the code review the user submitted in VS Code for your uncommitted changes (PR-style comment threads with file/line and code). Call this when told a review was submitted.',
+      'Returns the code review the user submitted in their editor (VS Code or Visual Studio) for your uncommitted changes (PR-style comment threads with file/line and code). Call this when told a review was submitted.',
     inputSchema: { repo_path: repoPath },
   },
   async ({ repo_path }) => {
@@ -101,7 +101,7 @@ server.registerTool(
   'reply_to_thread',
   {
     title: 'Reply to review thread',
-    description: 'Posts a reply on a review thread, visible to the user in VS Code. Use it to explain what you changed.',
+    description: 'Posts a reply on a review thread, visible to the user in their editor. Use it to explain what you changed.',
     inputSchema: {
       repo_path: repoPath,
       thread_id: z.string().describe('Thread ID, e.g. thr_abc123'),
@@ -121,7 +121,7 @@ server.registerTool(
   {
     title: 'Mark review thread addressed',
     description:
-      'Marks a review thread as addressed once you have fully handled it, with a reply summarising what you did. The thread becomes Active until the reviewer accepts (resolves) it in VS Code; only the reviewer can fully resolve.',
+      'Marks a review thread as addressed once you have fully handled it, with a reply summarising what you did. The thread becomes Active until the reviewer accepts (resolves) it in their editor; only the reviewer can fully resolve.',
     inputSchema: {
       repo_path: repoPath,
       thread_id: z.string(),
@@ -147,7 +147,7 @@ server.registerTool(
   {
     title: 'Wait for a local code review',
     description:
-      'Blocks until the user submits a review in VS Code or the timeout elapses. If it returns "No review yet", call it again to keep waiting. Returns immediately if VS Code is not open on the repository. Prefer the stop hook when installed.',
+      'Blocks until the user submits a review in their editor (VS Code or Visual Studio) or the timeout elapses. If it returns "No review yet", call it again to keep waiting. Returns immediately if no editor with Vibe Review is open on the repository. Prefer the stop hook when installed.',
     inputSchema: {
       repo_path: repoPath,
       timeout_sec: z.number().int().min(1).max(55).default(50),

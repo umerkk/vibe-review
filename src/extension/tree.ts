@@ -2,8 +2,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { ChangedFile, getChangedFiles } from '../shared/git';
 import { ReviewStore } from '../shared/store';
-import { ReviewThread, threadState } from '../shared/types';
-import { stateLabel } from './comments';
+import { ReviewThread, stateLabel, threadState } from '../shared/types';
 
 export const HEAD_SCHEME = 'vibe-review-head';
 

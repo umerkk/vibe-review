@@ -31,6 +31,8 @@ agent edits code → finishes its turn → waits for you ⏸
 
 **[⬇ Install from the VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=muumer.vibe-review)**, then follow the [Quick start](#quick-start-about-5-minutes).
 
+**Using Visual Studio 2022 or later?** Vibe Review is available for [Visual Studio](#visual-studio) too, with the same capabilities.
+
 ---
 
 ## Contents
@@ -45,6 +47,7 @@ agent edits code → finishes its turn → waits for you ⏸
 - [Privacy](#privacy)
 - [How it works](#how-it-works)
 - [Known limitations](#known-limitations)
+- [Visual Studio](#visual-studio)
 - [Building from source](#building-from-source)
 
 ---
@@ -309,6 +312,14 @@ While a project is open, each VS Code window records a heartbeat in `.vibe-revie
 - In multi-root workspaces, only the first git repository is reviewed.
 - Claude Code and Copilot CLI end a turn after 8 hook-forced continuations in a row. Send any message to resume.
 - The longest wait for one turn is 55 minutes, because agents cap how long a hook may run.
+
+---
+
+## Visual Studio
+
+Vibe Review also runs in **Visual Studio 2022 and later** (Windows), with the same capabilities: a **Vibe Review** tool window lists changed files and comment threads, you comment on selected changed lines from the editor's right-click menu (also in diffs), and **Submit**, **Approve**, **Discard**, **Review Mode**, **Set Up Agents** and **Uninstall** are in **Tools → Vibe Review**. It shares the review data, agent hooks, MCP server and review engine with the VS Code extension, so you can use either editor (or both) on the same project.
+
+See **[Vibe Review for Visual Studio](visualstudio/README.md)** for installation, usage, building the `.vsix`, and a manual test checklist.
 
 ---
 
