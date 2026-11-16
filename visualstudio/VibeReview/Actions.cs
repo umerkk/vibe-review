@@ -167,7 +167,7 @@ namespace VibeReview
                 return;
             }
             var (document, startLine, endLine, anchor) = target.Value;
-            if (Session.RelativePath(document.FilePath) is not string rel)
+            if (Session.RelativePath(document) is not string rel)
             {
                 await VS.MessageBox.ShowWarningAsync("Vibe Review", "Comments can only be added to files in the repository.");
                 return;

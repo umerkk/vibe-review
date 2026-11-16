@@ -56,7 +56,7 @@ namespace VibeReview.Editor
             if (spans.Count == 0) yield break;
             var document = EditorSelection.TryGetDocument(_buffer);
             if (document == null) yield break;
-            var threads = ReviewSession.Instance.ThreadsFor(document.FilePath);
+            var threads = ReviewSession.Instance.ThreadsFor(document);
             if (threads.Length == 0) yield break;
             var snapshot = spans[0].Snapshot;
             // One glyph per line: the most urgent thread wins (pending, then active, then resolved).

@@ -24,7 +24,7 @@ namespace VibeReview
             var session = ReviewSession.Instance;
             // In a diff view the view's buffer is a projection: find the working-tree file underneath.
             var buffer = view.BufferGraph
-                .GetTextBuffers(b => TryGetDocument(b) is ITextDocument d && session.RelativePath(d.FilePath) != null)
+                .GetTextBuffers(b => TryGetDocument(b) is ITextDocument d && session.RelativePath(d) != null)
                 .FirstOrDefault();
             if (buffer == null || !(TryGetDocument(buffer) is ITextDocument document)) return null;
 

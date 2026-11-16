@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
@@ -11,6 +12,7 @@ using Microsoft.VisualStudio.Imaging;
 using Microsoft.Win32.SafeHandles;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
+using Microsoft.VisualStudio.Text;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using VibeReview.Bridge;
@@ -36,11 +38,16 @@ namespace VibeReview
         private readonly SemaphoreSlim _wake = new SemaphoreSlim(0);
         private readonly SemaphoreSlim _tickLock = new SemaphoreSlim(1, 1);
         private readonly object _pollLock = new object();
+        private readonly object _pathCacheLock = new object();
+        private ConditionalWeakTable<ITextDocument, RelativePathCache> _relativePaths =
+            new ConditionalWeakTable<ITextDocument, RelativePathCache>();
         private CancellationTokenSource? _cts;
         private CancellationTokenSource _folderCts = new CancellationTokenSource();
         private AsyncPackage? _package;
         private string? _folder;
         private string? _resolvedFolder;
+        private string? _canonicalRootSource;
+        private string? _canonicalRoot;
         private FileSystemWatcher? _watcher;
         private DateTime _lastBeat = DateTime.MinValue;
         private string? _lastJson;
@@ -140,24 +147,75 @@ namespace VibeReview
         public string? FullPath(string relative) =>
             Root == null ? null : Path.GetFullPath(Path.Combine(Root, relative.Replace('/', Path.DirectorySeparatorChar)));
 
-        /// <summary>Repository-relative, forward-slash path of an absolute path, or null when outside the repository.</summary>
-        public string? RelativePath(string fullPath)
+        /// <summary>Repository-relative, forward-slash path of a document, or null when outside the repository.</summary>
+        public string? RelativePath(ITextDocument document)
         {
             var root = Root;
+            var fullPath = document.FilePath;
             if (root == null || string.IsNullOrEmpty(fullPath)) return null;
-            string full;
-            try
+            lock (_pathCacheLock)
             {
-                full = CanonicalPath(fullPath);
-                root = CanonicalPath(root);
+                if (!string.Equals(_canonicalRootSource, root, StringComparison.OrdinalIgnoreCase))
+                {
+                    _canonicalRootSource = root;
+                    try
+                    {
+                        _canonicalRoot = CanonicalPath(root);
+                    }
+                    catch (Exception ex) when (ex is ArgumentException || ex is NotSupportedException || ex is PathTooLongException)
+                    {
+                        _canonicalRoot = null;
+                    }
+                }
+
+                if (_relativePaths.TryGetValue(document, out var cached) &&
+                    string.Equals(cached.Root, root, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(cached.FullPath, fullPath, StringComparison.Ordinal))
+                    return cached.RelativePath;
+
+                string? relative = null;
+                if (_canonicalRoot != null)
+                {
+                    try
+                    {
+                        var full = CanonicalPath(fullPath);
+                        var prefix = _canonicalRoot.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+                        if (full.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                            relative = full.Substring(prefix.Length).Replace(Path.DirectorySeparatorChar, '/');
+                    }
+                    catch (Exception ex) when (ex is ArgumentException || ex is NotSupportedException || ex is PathTooLongException)
+                    {
+                    }
+                }
+
+                _relativePaths.Remove(document);
+                _relativePaths.Add(document, new RelativePathCache(root, fullPath, relative));
+                return relative;
             }
-            catch (Exception ex) when (ex is ArgumentException || ex is NotSupportedException || ex is PathTooLongException)
+        }
+
+        private sealed class RelativePathCache
+        {
+            public RelativePathCache(string root, string fullPath, string? relativePath)
             {
-                return null;
+                Root = root;
+                FullPath = fullPath;
+                RelativePath = relativePath;
             }
-            var prefix = root.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-            if (!full.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return null;
-            return full.Substring(prefix.Length).Replace(Path.DirectorySeparatorChar, '/');
+
+            public string Root { get; }
+            public string FullPath { get; }
+            public string? RelativePath { get; }
+        }
+
+        private void InvalidatePathCache()
+        {
+            lock (_pathCacheLock)
+            {
+                _canonicalRootSource = null;
+                _canonicalRoot = null;
+                _relativePaths = new ConditionalWeakTable<ITextDocument, RelativePathCache>();
+            }
         }
 
         private static string CanonicalPath(string path)
@@ -205,6 +263,7 @@ namespace VibeReview
                 State = null;
                 Error = null;
                 _lastJson = null;
+                InvalidatePathCache();
                 _folder = null;
                 _resolvedFolder = null;
                 _lastBeat = DateTime.MinValue;
@@ -440,6 +499,7 @@ namespace VibeReview
         private void SwitchRoot(string? root)
         {
             if (string.Equals(root, Root, StringComparison.OrdinalIgnoreCase)) return;
+            InvalidatePathCache();
             _watcher?.Dispose();
             _watcher = null;
             Root = root;
@@ -583,10 +643,10 @@ namespace VibeReview
                 _ = ReleaseAgentsAfterPollAsync(root, precedingRelease, releaseGate);
         }
 
-        /// <summary>Threads on a file, by absolute path.</summary>
-        public ThreadInfo[] ThreadsFor(string fullPath)
+        /// <summary>Threads on a document.</summary>
+        public ThreadInfo[] ThreadsFor(ITextDocument document)
         {
-            var rel = RelativePath(fullPath);
+            var rel = RelativePath(document);
             var state = State;
             if (rel == null || state == null) return Array.Empty<ThreadInfo>();
             return state.Threads.Where(t => string.Equals(t.File, rel, StringComparison.OrdinalIgnoreCase)).ToArray();
