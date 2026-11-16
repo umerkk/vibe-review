@@ -1,0 +1,88 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Vibe Review for Visual Studio 2022 / 2026 (VSIX).
+
+    The review logic (store, git, review formatting, agent setup) is shared with the VS Code
+    extension: it runs in Node.js via ../../dist/vs-bridge.js, which this project bundles together
+    with the agent hook and MCP server. Build it first with `npm ci && npm run build` in the
+    repository root (done automatically below if dist/ is missing).
+
+    Build the .vsix on Windows with Visual Studio 2022+ (or `msbuild /restore`). On other platforms
+    `dotnet build` only compiles the C# code (useful for CI); VSIX packaging needs Windows.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <!-- FireAndForget() is the toolkit's pattern for UI event handlers. -->
+    <NoWarn>$(NoWarn);VSSDK007</NoWarn>
+    <RootNamespace>VibeReview</RootNamespace>
+    <AssemblyName>VibeReview.VisualStudio</AssemblyName>
+    <Version>0.2.2</Version>
+    <RepoRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\'))</RepoRoot>
+    <IsWindowsBuild Condition="'$(OS)' == 'Windows_NT'">true</IsWindowsBuild>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <GeneratePkgDefFile>true</GeneratePkgDefFile>
+    <UseCodebase>true</UseCodebase>
+    <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
+    <IncludeDebugSymbolsInVSIXContainer>false</IncludeDebugSymbolsInVSIXContainer>
+    <IncludeDebugSymbolsInLocalVSIXDeployment>true</IncludeDebugSymbolsInLocalVSIXDeployment>
+    <CopyBuildOutputToOutputDirectory>true</CopyBuildOutputToOutputDirectory>
+    <CopyOutputSymbolsToOutputDirectory>true</CopyOutputSymbolsToOutputDirectory>
+    <DeployExtension Condition="'$(DeployExtension)' == '' AND '$(Configuration)' == 'Release'">false</DeployExtension>
+    <!-- F5 launches the Visual Studio experimental instance with the extension installed. -->
+    <StartAction>Program</StartAction>
+    <StartProgram>$(DevEnvDir)devenv.exe</StartProgram>
+    <StartArguments>/rootsuffix Exp</StartArguments>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Community.VisualStudio.Toolkit.17" Version="17.0.551" />
+    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.14.2142" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+    <Reference Include="System.ComponentModel.Composition" />
+    <Reference Include="System.Design" />
+    <Reference Include="System.Xaml" />
+    <Reference Include="WindowsBase" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="source.extension.vsixmanifest">
+      <SubType>Designer</SubType>
+    </None>
+    <VSCTCompile Include="VSCommandTable.vsct">
+      <ResourceName>Menus.ctmenu</ResourceName>
+    </VSCTCompile>
+    <Content Include="..\..\LICENSE" Link="LICENSE">
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
+    <Content Include="..\..\media\icon.png" Link="Resources\icon.png">
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
+    <!-- The Node runtime shared with the VS Code extension: the bridge used by this extension, plus the hook and MCP server copied to ~/.vibe-review/bin by "Set Up Agents". -->
+    <Content Include="..\..\dist\vs-bridge.js;..\..\dist\hook.js;..\..\dist\mcp.js">
+      <Link>dist\%(Filename)%(Extension)</Link>
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <!-- Visual Studio provides its own SDK assemblies: ship only the Community toolkit inside the VSIX. -->
+  <Target Name="KeepOnlyToolkitCopyLocal" AfterTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)" Condition="'%(ReferenceCopyLocalPaths.NuGetPackageId)' != 'Community.VisualStudio.Toolkit.17'" />
+      <ReferenceSatellitePaths Remove="@(ReferenceSatellitePaths)" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="BuildNodeRuntime" BeforeTargets="BeforeBuild;AssignTargetPaths" Condition="!Exists('$(RepoRoot)dist\vs-bridge.js') Or !Exists('$(RepoRoot)dist\hook.js') Or !Exists('$(RepoRoot)dist\mcp.js')">
+    <Error Condition="!Exists('$(RepoRoot)node_modules')" Text="Vibe Review needs its Node.js runtime. Run 'npm ci' in $(RepoRoot), then build again." />
+    <Exec Command="npm run build" WorkingDirectory="$(RepoRoot)" />
+  </Target>
+
+  <Import Project="$(VSToolsPath)\VSSDK\Microsoft.VsSDK.targets" Condition="'$(IsWindowsBuild)' == 'true' And '$(VSToolsPath)' != '' And Exists('$(VSToolsPath)\VSSDK\Microsoft.VsSDK.targets')" />
+</Project>

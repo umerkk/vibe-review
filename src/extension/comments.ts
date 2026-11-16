@@ -5,7 +5,7 @@ import { ChangedFile, getChangedLineRanges } from '../shared/git';
 import { locateThread } from '../shared/format';
 import { rewriteAttachments } from '../shared/attachments';
 import { ReviewStore } from '../shared/store';
-import { ReviewComment, ReviewThread, ThreadState, threadState } from '../shared/types';
+import { ReviewComment, ReviewThread, ThreadState, stateLabel, threadState } from '../shared/types';
 
 /** Avatar images for each author, so consecutive comments are easy to tell apart. */
 let avatars: { user?: vscode.Uri; agent?: vscode.Uri } = {};
@@ -40,17 +40,6 @@ export function commentMarkdown(root: string, body: string): vscode.MarkdownStri
   const md = new vscode.MarkdownString(rewriteAttachments(root, body, (abs, alt) => `![${alt}](${vscode.Uri.file(abs).toString()})`));
   md.isTrusted = false;
   return md;
-}
-
-export function stateLabel(state: ThreadState, hasDraft: boolean): string {
-  switch (state) {
-    case 'pending':
-      return hasDraft ? '● Pending: not submitted yet' : '● Pending: waiting for the agent';
-    case 'active':
-      return '◐ Active: agent responded. Resolve to accept, or reply';
-    case 'resolved':
-      return '✓ Resolved';
-  }
 }
 
 export class CommentsManager implements vscode.Disposable {

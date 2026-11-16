@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CommandTable xmlns="http://schemas.microsoft.com/VisualStudio/2005-10-18/CommandTable" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <!-- IDs must match VSCommandTable.cs. -->
+  <Extern href="stdidcmd.h"/>
+  <Extern href="vsshlids.h"/>
+  <Include href="KnownImageIds.vsct"/>
+
+  <Commands package="guidVibeReviewPackage">
+    <Menus>
+      <!-- Tools > Vibe Review -->
+      <Menu guid="guidVibeReviewCmdSet" id="VibeReviewMenu" priority="0x0100" type="Menu">
+        <Parent guid="guidVibeReviewCmdSet" id="ToolsMenuGroup"/>
+        <Strings>
+          <ButtonText>Vibe Review</ButtonText>
+          <CommandName>Vibe Review</CommandName>
+        </Strings>
+      </Menu>
+    </Menus>
+
+    <Groups>
+      <Group guid="guidVibeReviewCmdSet" id="ToolsMenuGroup" priority="0x0600">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_MENU_TOOLS"/>
+      </Group>
+      <Group guid="guidVibeReviewCmdSet" id="ReviewGroup" priority="0x0100">
+        <Parent guid="guidVibeReviewCmdSet" id="VibeReviewMenu"/>
+      </Group>
+      <Group guid="guidVibeReviewCmdSet" id="ModeGroup" priority="0x0200">
+        <Parent guid="guidVibeReviewCmdSet" id="VibeReviewMenu"/>
+      </Group>
+      <Group guid="guidVibeReviewCmdSet" id="SetupGroup" priority="0x0300">
+        <Parent guid="guidVibeReviewCmdSet" id="VibeReviewMenu"/>
+      </Group>
+      <!-- Editor right-click menu -->
+      <Group guid="guidVibeReviewCmdSet" id="EditorContextGroup" priority="0x0100">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_CODEWIN"/>
+      </Group>
+    </Groups>
+
+    <Buttons>
+      <Button guid="guidVibeReviewCmdSet" id="ShowToolWindow" priority="0x0100" type="Button">
+        <Parent guid="guidVibeReviewCmdSet" id="ReviewGroup"/>
+        <Icon guid="ImageCatalogGuid" id="CodeReview"/>
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>Show Changes &amp;&amp; Comments</ButtonText>
+          <CommandName>VibeReview.ShowToolWindow</CommandName>
+          <CanonicalName>.VibeReview.ShowToolWindow</CanonicalName>
+          <LocCanonicalName>.VibeReview.ShowToolWindow</LocCanonicalName>
+        </Strings>
+      </Button>
+      <Button guid="guidVibeReviewCmdSet" id="Submit" priority="0x0110" type="Button">
+        <Parent guid="guidVibeReviewCmdSet" id="ReviewGroup"/>
+        <Icon guid="ImageCatalogGuid" id="Send"/>
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>Submit Review…</ButtonText>
+          <CommandName>VibeReview.Submit</CommandName>
+          <CanonicalName>.VibeReview.Submit</CanonicalName>
+          <LocCanonicalName>.VibeReview.Submit</LocCanonicalName>
+        </Strings>
+      </Button>
+      <Button guid="guidVibeReviewCmdSet" id="Approve" priority="0x0120" type="Button">
+        <Parent guid="guidVibeReviewCmdSet" id="ReviewGroup"/>
+        <Icon guid="ImageCatalogGuid" id="StatusOK"/>
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>Approve</ButtonText>
+          <CommandName>VibeReview.Approve</CommandName>
+          <CanonicalName>.VibeReview.Approve</CanonicalName>
+          <LocCanonicalName>.VibeReview.Approve</LocCanonicalName>
+        </Strings>
+      </Button>
+      <Button guid="guidVibeReviewCmdSet" id="Discard" priority="0x0130" type="Button">
+        <Parent guid="guidVibeReviewCmdSet" id="ReviewGroup"/>
+        <Icon guid="ImageCatalogGuid" id="Undo"/>
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>Discard Review</ButtonText>
+          <CommandName>VibeReview.Discard</CommandName>
+          <CanonicalName>.VibeReview.Discard</CanonicalName>
+          <LocCanonicalName>.VibeReview.Discard</LocCanonicalName>
+        </Strings>
+      </Button>
+      <Button guid="guidVibeReviewCmdSet" id="ToggleMode" priority="0x0100" type="Button">
+        <Parent guid="guidVibeReviewCmdSet" id="ModeGroup"/>
+        <Icon guid="ImageCatalogGuid" id="Visible"/>
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <CommandFlag>TextChanges</CommandFlag>
+        <Strings>
+          <ButtonText>Toggle Review Mode</ButtonText>
+          <CommandName>VibeReview.ToggleReviewMode</CommandName>
+          <CanonicalName>.VibeReview.ToggleReviewMode</CanonicalName>
+          <LocCanonicalName>.VibeReview.ToggleReviewMode</LocCanonicalName>
+        </Strings>
+      </Button>
+      <Button guid="guidVibeReviewCmdSet" id="Refresh" priority="0x0110" type="Button">
+        <Parent guid="guidVibeReviewCmdSet" id="ModeGroup"/>
+        <Icon guid="ImageCatalogGuid" id="Refresh"/>
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>Refresh</ButtonText>
+          <CommandName>VibeReview.Refresh</CommandName>
+          <CanonicalName>.VibeReview.Refresh</CanonicalName>
+          <LocCanonicalName>.VibeReview.Refresh</LocCanonicalName>
+        </Strings>
+      </Button>
+      <Button guid="guidVibeReviewCmdSet" id="SetupAgents" priority="0x0100" type="Button">
+        <Parent guid="guidVibeReviewCmdSet" id="SetupGroup"/>
+        <Icon guid="ImageCatalogGuid" id="Settings"/>
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>Set Up Agents (Hooks + MCP)…</ButtonText>
+          <CommandName>VibeReview.SetUpAgents</CommandName>
+          <CanonicalName>.VibeReview.SetUpAgents</CanonicalName>
+          <LocCanonicalName>.VibeReview.SetUpAgents</LocCanonicalName>
+        </Strings>
+      </Button>
+      <Button guid="guidVibeReviewCmdSet" id="Uninstall" priority="0x0110" type="Button">
+        <Parent guid="guidVibeReviewCmdSet" id="SetupGroup"/>
+        <Icon guid="ImageCatalogGuid" id="Uninstall"/>
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>Uninstall (Remove Hooks, MCP Server &amp;&amp; Data)…</ButtonText>
+          <CommandName>VibeReview.Uninstall</CommandName>
+          <CanonicalName>.VibeReview.Uninstall</CanonicalName>
+          <LocCanonicalName>.VibeReview.Uninstall</LocCanonicalName>
+        </Strings>
+      </Button>
+      <Button guid="guidVibeReviewCmdSet" id="AddComment" priority="0x0100" type="Button">
+        <Parent guid="guidVibeReviewCmdSet" id="EditorContextGroup"/>
+        <Icon guid="ImageCatalogGuid" id="AddComment"/>
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <CommandFlag>DefaultInvisible</CommandFlag>
+        <Strings>
+          <ButtonText>Vibe Review: Add Comment…</ButtonText>
+          <CommandName>VibeReview.AddComment</CommandName>
+          <CanonicalName>.VibeReview.AddComment</CanonicalName>
+          <LocCanonicalName>.VibeReview.AddComment</LocCanonicalName>
+        </Strings>
+      </Button>
+    </Buttons>
+  </Commands>
+
+  <CommandPlacements>
+    <!-- Also under View > Other Windows. -->
+    <CommandPlacement guid="guidVibeReviewCmdSet" id="ShowToolWindow" priority="0x0100">
+      <Parent guid="guidSHLMainMenu" id="IDG_VS_WNDO_OTRWNDWS1"/>
+    </CommandPlacement>
+  </CommandPlacements>
+
+  <Symbols>
+    <GuidSymbol name="guidVibeReviewPackage" value="{4c96abaf-b98d-4a0e-8d3f-0d7e622aa7d2}"/>
+    <GuidSymbol name="guidVibeReviewCmdSet" value="{fed2d5b7-e980-4175-87db-7a89c157157f}">
+      <IDSymbol name="VibeReviewMenu" value="0x1000"/>
+      <IDSymbol name="ToolsMenuGroup" value="0x1100"/>
+      <IDSymbol name="ReviewGroup" value="0x1101"/>
+      <IDSymbol name="ModeGroup" value="0x1102"/>
+      <IDSymbol name="SetupGroup" value="0x1103"/>
+      <IDSymbol name="EditorContextGroup" value="0x1200"/>
+      <IDSymbol name="ShowToolWindow" value="0x0100"/>
+      <IDSymbol name="Submit" value="0x0101"/>
+      <IDSymbol name="Approve" value="0x0102"/>
+      <IDSymbol name="Discard" value="0x0103"/>
+      <IDSymbol name="ToggleMode" value="0x0104"/>
+      <IDSymbol name="Refresh" value="0x0105"/>
+      <IDSymbol name="AddComment" value="0x0106"/>
+      <IDSymbol name="SetupAgents" value="0x0107"/>
+      <IDSymbol name="Uninstall" value="0x0108"/>
+    </GuidSymbol>
+  </Symbols>
+</CommandTable>

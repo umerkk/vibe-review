@@ -82,3 +82,15 @@ export function threadState(t: ReviewThread, viewer: 'user' | 'agent' = 'user'):
   if (t.status === 'resolved') return 'resolved';
   return comments.at(-1)?.author === 'agent' ? 'active' : 'pending';
 }
+
+/** Human-readable thread state, shown in thread headers and the changes tree. */
+export function stateLabel(state: ThreadState, hasDraft: boolean): string {
+  switch (state) {
+    case 'pending':
+      return hasDraft ? '● Pending: not submitted yet' : '● Pending: waiting for the agent';
+    case 'active':
+      return '◐ Active: agent responded. Resolve to accept, or reply';
+    case 'resolved':
+      return '✓ Resolved';
+  }
+}

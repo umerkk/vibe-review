@@ -1,0 +1,74 @@
+name: Visual Studio extension
+
+# Builds the Visual Studio (2022+) VSIX on Windows and uploads it as an artifact.
+# Also runs the Node bridge tests on Windows, since that's where Visual Studio runs them.
+on:
+  push:
+    branches: [main]
+    paths: ['visualstudio/**', 'src/**', 'test/vs-bridge.test.ts', 'package*.json', 'esbuild.mjs', '.github/workflows/visualstudio.yml']
+  pull_request:
+    paths: ['visualstudio/**', 'src/**', 'test/vs-bridge.test.ts', 'package*.json', 'esbuild.mjs', '.github/workflows/visualstudio.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  vsix:
+    name: Build VSIX
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Bridge tests (Windows)
+        run: node --test --import tsx test/vs-bridge.test.ts
+
+      - name: Check versions match package.json
+        shell: pwsh
+        run: |
+          $version = node -p "require('./package.json').version"
+          [xml]$manifest = Get-Content visualstudio/VibeReview/source.extension.vsixmanifest
+          $checks = @{
+            'source.extension.vsixmanifest' = $manifest.PackageManifest.Metadata.Identity.Version
+            'Vsix.cs' = [regex]::Match((Get-Content -Raw visualstudio/VibeReview/Vsix.cs), 'Version = "([^"]+)"').Groups[1].Value
+            'VibeReview.VisualStudio.csproj' = [regex]::Match((Get-Content -Raw visualstudio/VibeReview/VibeReview.VisualStudio.csproj), '<Version>([^<]+)</Version>').Groups[1].Value
+          }
+          foreach ($file in $checks.Keys) {
+            if ($checks[$file] -ne $version) { Write-Error "$file has version $($checks[$file]), package.json has $version"; exit 1 }
+          }
+
+      - uses: microsoft/setup-msbuild@v2
+
+      - name: Build
+        run: msbuild visualstudio/VibeReview.VisualStudio.sln /restore /p:Configuration=Release /p:DeployExtension=false /v:minimal
+
+      - name: Check VSIX contents
+        shell: pwsh
+        run: |
+          $vsix = Get-ChildItem -Recurse visualstudio/VibeReview/bin/Release -Filter *.vsix | Select-Object -First 1
+          if (-not $vsix) { Write-Error 'No .vsix was produced'; exit 1 }
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [System.IO.Compression.ZipFile]::OpenRead($vsix.FullName)
+          $entries = $zip.Entries | ForEach-Object { $_.FullName }
+          $zip.Dispose()
+          $entries | Sort-Object | Write-Output
+          $required = 'extension.vsixmanifest', 'VibeReview.VisualStudio.dll', 'VibeReview.VisualStudio.pkgdef', 'Community.VisualStudio.Toolkit.dll', 'dist/vs-bridge.js', 'dist/hook.js', 'dist/mcp.js', 'LICENSE', 'Resources/icon.png'
+          foreach ($name in $required) {
+            if ($entries -notcontains $name) { Write-Error "VSIX is missing $name"; exit 1 }
+          }
+          "vsix=$($vsix.FullName)" >> $env:GITHUB_ENV
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vibe-review-visualstudio
+          path: ${{ env.vsix }}
+          if-no-files-found: error

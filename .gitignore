@@ -5,3 +5,7 @@ dist/
 .DS_Store
 test/.setup-tmp/
 .local-review/
+visualstudio/**/bin/
+visualstudio/**/obj/
+visualstudio/.vs/
+*.user

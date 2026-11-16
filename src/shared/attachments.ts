@@ -35,6 +35,11 @@ export function saveAttachment(root: string, data: Uint8Array, ext: string): str
   return rel;
 }
 
+/** The Markdown that embeds a saved attachment in a comment body. */
+export function imageMarkdown(rel: string, name: string): string {
+  return `![${name.replace(/[[\]]/g, '')}](${rel})`;
+}
+
 // `![alt](.vibe-review/attachments/x.png)`, optionally wrapped in <>.
 // Alt text may itself contain brackets, so match lazily up to the attachments link.
 const IMAGE_RE = /!\[((?:[^\]\n]|\](?!\())*)\]\(<?(\.vibe-review\/attachments\/[^)\s>]+)>?\)/g;
